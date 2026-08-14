@@ -1,0 +1,82 @@
+import { useState, useEffect } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { getDevice, getToken, clearSession } from './api'
+import Login from './Login'
+import Welcome from './Welcome'
+import ClockInOut from './ClockInOut'
+import Console from './Console'
+
+function RequireAuth({ authed, children }) {
+  if (!authed) return <Navigate to="/login" replace />
+  return children
+}
+
+function RedirectIfAuthed({ authed, children }) {
+  if (authed) return <Navigate to="/" replace />
+  return children
+}
+
+export default function App() {
+  const [authed, setAuthed] = useState(false)
+  const [device, setDevice] = useState(null)
+  const [ready, setReady] = useState(false)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    setDevice(getDevice())
+    setAuthed(Boolean(getToken()))
+    setReady(true)
+  }, [])
+
+  function onAuth(session) {
+    setDevice(session.device)
+    setAuthed(true)
+    navigate('/', { replace: true })
+  }
+
+  function logout() {
+    clearSession()
+    setAuthed(false)
+    navigate('/login', { replace: true })
+  }
+
+  if (!ready) return null
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <RedirectIfAuthed authed={authed}>
+            <Login onAuth={onAuth} />
+          </RedirectIfAuthed>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <RequireAuth authed={authed}>
+            <Welcome device={device} onClockInOut={() => navigate('/clock')} />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/clock"
+        element={
+          <RequireAuth authed={authed}>
+            <ClockInOut onBack={() => navigate('/')} onClockedIn={() => navigate('/console')} />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/console"
+        element={
+          <RequireAuth authed={authed}>
+            <Console device={device} onLogout={logout} />
+          </RequireAuth>
+        }
+      />
+      <Route path="*" element={<Navigate to={authed ? '/' : '/login'} replace />} />
+    </Routes>
+  )
+}
