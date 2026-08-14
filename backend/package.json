@@ -1,0 +1,31 @@
+{
+  "name": "backoffice_backend",
+  "version": "1.0.0",
+  "description": "Backend API for the Resort Management System",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "setup": "node db/setup.js",
+    "seed": "node src/utils/seed.js"
+  },
+  "keywords": [
+    "resort",
+    "mysql",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "mysql2": "^3.23.3",
+    "nodemailer": "^9.0.5"
+  }
+}
