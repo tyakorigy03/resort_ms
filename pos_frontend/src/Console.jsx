@@ -22,7 +22,6 @@ import {
 } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CallSplitIcon from '@mui/icons-material/CallSplit'
 import CloseIcon from '@mui/icons-material/Close'
 import EditIcon from '@mui/icons-material/Edit'
@@ -511,31 +510,6 @@ function Register() {
 
       {tabsBar}
 
-      {/* Context header: who/what this register is working on */}
-      <Paper variant="outlined" sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <IconButton size="small" onClick={() => navigate('/tables')} title="Back to tables">
-          <ArrowBackIcon fontSize="small" />
-        </IconButton>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.1, textTransform: 'capitalize' }}>
-            {headerTitle}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1, display: 'block' }}>
-            {order.orderNumber} · {order.orderType}
-          </Typography>
-        </Box>
-        <Box sx={{ flexGrow: 1 }} />
-        {order.covers ? <Chip size="small" label={`${order.covers} covers`} /> : null}
-        {order.customerName && (
-          <Chip size="small" icon={<PersonIcon />} label={order.customerName} color="success" variant="soft" />
-        )}
-        <Button size="small" color="inherit" variant="soft" disabled={busy || !activeCourse} onClick={handleHold}>
-          {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
-        </Button>
-        <IconButton size="small" onClick={(e) => setEditAnchor(e.currentTarget)} title="Order options">
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      </Paper>
       <Menu anchorEl={editAnchor} open={Boolean(editAnchor)} onClose={() => setEditAnchor(null)}>
         <MenuItem onClick={() => { setEditAnchor(null); setDialog('customer') }}>Assign customer</MenuItem>
         <Divider />
@@ -652,8 +626,33 @@ function Register() {
           </Box>
         </Paper>
 
-        {/* Menu: category rail + seat target + items */}
+        {/* Menu: current order header + category rail + seat target + items */}
         <Paper variant="outlined" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <Box sx={{ px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body1" sx={{ fontWeight: 800, lineHeight: 1.1, textTransform: 'capitalize' }}>
+                  {headerTitle}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1, display: 'block' }}>
+                  {order.orderNumber} · {order.orderType}
+                </Typography>
+              </Box>
+              <Box sx={{ flexGrow: 1 }} />
+              {order.covers ? <Chip size="small" label={`${order.covers} covers`} /> : null}
+              <IconButton size="small" onClick={(e) => setEditAnchor(e.currentTarget)} title="Order options">
+                <MoreVertIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+              {order.customerName && (
+                <Chip size="small" icon={<PersonIcon />} label={order.customerName} color="success" variant="soft" />
+              )}
+              <Button size="small" color="inherit" variant="soft" disabled={busy || !activeCourse} onClick={handleHold}>
+                {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
+              </Button>
+            </Box>
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider', overflowX: 'auto', flexShrink: 0 }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', whiteSpace: 'nowrap' }}>
               Add to
