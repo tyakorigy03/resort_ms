@@ -109,6 +109,24 @@ export function buildTheme(mode, opts = {}) {
       },
       MuiChip: {
         styleOverrides: { root: { fontWeight: 600 } },
+        variants: [
+          {
+            props: { variant: 'soft' },
+            style: ({ theme }) => ({
+              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+              color: theme.palette.text.primary,
+              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)' },
+            }),
+          },
+          {
+            props: { variant: 'soft', color: 'primary' },
+            style: ({ theme }) => ({
+              backgroundColor: alpha(theme.palette.primary.main, 0.15),
+              color: theme.palette.primary.main,
+              '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.25) },
+            }),
+          },
+        ],
       },
       MuiAppBar: {
         styleOverrides: { root: { backgroundImage: 'none' } },

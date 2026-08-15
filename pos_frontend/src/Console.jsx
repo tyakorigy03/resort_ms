@@ -669,7 +669,7 @@ function Register() {
               label="All seats"
               size="small"
               color={activeSeat === null ? 'primary' : 'default'}
-              variant={activeSeat === null ? 'filled' : 'outlined'}
+              variant={activeSeat === null ? 'filled' : 'soft'}
               onClick={() => setActiveSeat(null)}
             />
             {Array.from({ length: seatCount }, (_, i) => i + 1).map((n) => (
@@ -678,7 +678,7 @@ function Register() {
                 label={`Seat ${n}`}
                 size="small"
                 color={activeSeat === n ? 'primary' : 'default'}
-                variant={activeSeat === n ? 'filled' : 'outlined'}
+                variant={activeSeat === n ? 'filled' : 'soft'}
                 onClick={() => setActiveSeat(n)}
               />
             ))}
