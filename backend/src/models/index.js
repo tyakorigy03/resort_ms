@@ -34,6 +34,7 @@ const tableSessionModel = require('./tableSession.model')
 const orderCourseModel = require('./orderCourse.model')
 const kdsModel = require('./kds.model')
 const kdsSettingsModel = require('./kdsSettings.model')
+const cashDrawerModel = require('./cashDrawer.model')
 
 module.exports = {
   userModel,
@@ -72,4 +73,5 @@ module.exports = {
   orderCourseModel,
   kdsModel,
   kdsSettingsModel,
+  cashDrawerModel,
 }

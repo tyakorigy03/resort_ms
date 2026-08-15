@@ -7,6 +7,9 @@ function mapPlan(row) {
     outletId: row.outlet_id,
     outletName: row.outlet_name || null,
     name: row.name,
+    orderProfileId: row.order_profile_id || null,
+    promptCoverCount: row.prompt_cover_count ? Boolean(row.prompt_cover_count) : true,
+    backgroundImageUrl: row.background_image_url || null,
     sortOrder: Number(row.sort_order),
     tableCount: Number(row.table_count || 0),
     totalSeats: Number(row.total_seats || 0),
@@ -16,7 +19,8 @@ function mapPlan(row) {
 }
 
 const BASE_SELECT = `
-  SELECT fp.id, fp.outlet_id, fp.name, fp.sort_order, fp.created_at, fp.updated_at,
+  SELECT fp.id, fp.outlet_id, fp.name, fp.order_profile_id, fp.prompt_cover_count,
+         fp.background_image_url, fp.sort_order, fp.created_at, fp.updated_at,
          o.name AS outlet_name,
          (SELECT COUNT(*) FROM restaurant_tables t WHERE t.floor_plan_id = fp.id) AS table_count,
          (SELECT COALESCE(SUM(t.seats), 0) FROM restaurant_tables t WHERE t.floor_plan_id = fp.id) AS total_seats
@@ -41,18 +45,35 @@ async function findById(id) {
   return mapPlan(rows[0])
 }
 
-async function create({ outletId, name, sortOrder }) {
+async function create({ outletId, name, orderProfileId, promptCoverCount, backgroundImageUrl, sortOrder }) {
   const [result] = await pool.query(
-    'INSERT INTO floor_plans (outlet_id, name, sort_order) VALUES (?, ?, ?)',
-    [outletId, name, Number(sortOrder) || 0],
+    `INSERT INTO floor_plans (outlet_id, name, order_profile_id, prompt_cover_count, background_image_url, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      outletId,
+      name,
+      orderProfileId || null,
+      promptCoverCount === undefined || promptCoverCount === null ? 1 : promptCoverCount ? 1 : 0,
+      backgroundImageUrl || null,
+      Number(sortOrder) || 0,
+    ],
   )
   return findById(result.insertId)
 }
 
-async function update(id, { name, sortOrder }) {
+async function update(id, { name, orderProfileId, promptCoverCount, backgroundImageUrl, sortOrder }) {
   const [result] = await pool.query(
-    'UPDATE floor_plans SET name = ?, sort_order = ? WHERE id = ?',
-    [name, Number(sortOrder) || 0, id],
+    `UPDATE floor_plans
+     SET name = ?, order_profile_id = ?, prompt_cover_count = ?, background_image_url = ?, sort_order = ?
+     WHERE id = ?`,
+    [
+      name,
+      orderProfileId || null,
+      promptCoverCount === undefined || promptCoverCount === null ? 1 : promptCoverCount ? 1 : 0,
+      backgroundImageUrl || null,
+      Number(sortOrder) || 0,
+      id,
+    ],
   )
   if (result.affectedRows === 0) throw httpError('Floor plan not found', 404)
   return findById(id)

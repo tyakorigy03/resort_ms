@@ -734,12 +734,38 @@ CREATE TABLE IF NOT EXISTS floor_plans (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   outlet_id INT UNSIGNED NOT NULL,
   name VARCHAR(100) NOT NULL,
+  order_profile_id INT UNSIGNED NULL,
+  prompt_cover_count TINYINT(1) NOT NULL DEFAULT 1,
+  background_image_url VARCHAR(255) NULL,
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_fp_outlet (outlet_id),
   CONSTRAINT fk_fp_outlet FOREIGN KEY (outlet_id) REFERENCES outlets(id) ON DELETE CASCADE
+);
+
+-- Cash drawer counts: one record per cash drawer device per day. A record for
+-- today means the register's opening cash was already confirmed, so the
+-- cash-drawer gate (spec 3.2) is not shown again. confirming also writes the
+-- opening count back onto the staff member's active clock event when that event
+-- has not been counted yet.
+CREATE TABLE IF NOT EXISTS cash_drawer_counts (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  drawer_device_id INT UNSIGNED NOT NULL,
+  outlet_id INT UNSIGNED NOT NULL,
+  staff_id INT UNSIGNED NULL,
+  count_date DATE NOT NULL,
+  opening_count DECIMAL(12,2) NOT NULL DEFAULT 0,
+  confirmed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_cdc_drawer_day (drawer_device_id, count_date),
+  KEY idx_cdc_outlet (outlet_id),
+  CONSTRAINT fk_cdc_drawer FOREIGN KEY (drawer_device_id) REFERENCES devices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdc_outlet FOREIGN KEY (outlet_id) REFERENCES outlets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cdc_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS restaurant_tables (
