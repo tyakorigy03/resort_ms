@@ -17,7 +17,8 @@ const TICKET_SELECT = `
   LEFT JOIN restaurant_tables t ON t.id = ts.table_id
   LEFT JOIN floor_plans fp ON fp.id = t.floor_plan_id
   LEFT JOIN order_courses oc ON oc.id = poi.course_id
-  WHERE poi.production_center_id = ?`
+  WHERE poi.production_center_id = ?
+    AND poi.kds_status NOT IN ('completed', 'cancelled')`
 
 async function getTickets(stationId) {
   const [rows] = await pool.query(`${TICKET_SELECT} ORDER BY poi.fired_at ASC, poi.id ASC`, [stationId])

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, CircularProgress, TextField, Typography } from '@mui/material'
 import LoginIcon from '@mui/icons-material/Login'
+import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
 import { api, saveSession } from './api'
 
 export default function Login({ onAuth }) {
@@ -18,6 +19,11 @@ export default function Login({ onAuth }) {
     setBusy(true)
     try {
       const session = await api.authenticate(code.trim())
+      if (session.device?.deviceType !== 'kds') {
+        setError('This code is not a kitchen display device.')
+        setCode('')
+        return
+      }
       saveSession({ token: session.token, device: session.device })
       onAuth(session)
     } catch (err) {
@@ -35,20 +41,21 @@ export default function Login({ onAuth }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#f5f5f5',
+        bgcolor: 'background.default',
         p: 2,
       }}
     >
-      <Card sx={{ width: '100%', maxWidth: 400, boxShadow: '0 2px 4px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.08)' }}>
-        <CardContent sx={{ p: 4 }}>
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 500, mb: 0.5 }}>
-              Point of Sale
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Sign in with your device code
+      <Card sx={{ width: '100%', maxWidth: 400 }}>
+        <CardContent sx={{ p: 4, textAlign: 'center' }}>
+          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <RestaurantMenuIcon color="primary" />
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+              Kitchen Display
             </Typography>
           </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Sign in with your display device code
+          </Typography>
 
           <Box component="form" onSubmit={submit} noValidate sx={{ display: 'flex', flexDirection: 'column' }}>
             <TextField

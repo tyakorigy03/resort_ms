@@ -1,5 +1,5 @@
-const TOKEN_KEY = 'pos_device_token'
-const DEVICE_KEY = 'pos_device_info'
+const TOKEN_KEY = 'kds_device_token'
+const DEVICE_KEY = 'kds_device_info'
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
@@ -47,21 +47,10 @@ export const api = {
   authenticate: (code) =>
     request('/api/devices/authenticate', { method: 'POST', body: { code } }),
 
-  items: () => request('/api/items'),
+  tickets: () => request('/api/kds/tickets'),
+  updateItemStatus: (itemId, status) =>
+    request(`/api/kds/items/${itemId}/status`, { method: 'PATCH', body: { status } }),
 
-  staffActive: () => request('/api/staff/active'),
-
-  clockActive: () => request('/api/clock/active'),
-  clockIn: (body) => request('/api/clock/clock-in', { method: 'POST', body }),
-  clockOut: (id, body = {}) => request(`/api/clock/${id}/clock-out`, { method: 'POST', body }),
-
-  salePeriodCurrent: () => request('/api/sale-periods/current'),
-  salePeriodOpen: (body = {}) => request('/api/sale-periods/open', { method: 'POST', body }),
-  salePeriodClose: (id, body = {}) => request(`/api/sale-periods/${id}/close`, { method: 'POST', body }),
-  salePeriodCash: (id) => request(`/api/sale-periods/${id}/cash`),
-
-  drawerOpen: () => request('/api/drawer/open', { method: 'POST' }),
-
-  ordersToday: () => request('/api/pos-orders?date=today'),
-  createOrder: (body) => request('/api/pos-orders', { method: 'POST', body }),
+  kdsSettings: () => request('/api/kds-settings'),
+  updateKdsSettings: (body) => request('/api/kds-settings', { method: 'PUT', body }),
 }

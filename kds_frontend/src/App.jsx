@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { getDevice, getToken, clearSession } from './api'
 import Login from './Login'
-import Welcome from './Welcome'
-import ClockInOut from './ClockInOut'
-import Console from './Console'
+import KdsShell from './KdsShell'
+import Board from './Board'
 
 function RequireAuth({ authed, children }) {
   if (!authed) return <Navigate to="/login" replace />
@@ -56,23 +55,9 @@ export default function App() {
         path="/"
         element={
           <RequireAuth authed={authed}>
-            <Welcome device={device} onClockInOut={() => navigate('/clock')} />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/clock"
-        element={
-          <RequireAuth authed={authed}>
-            <ClockInOut onBack={() => navigate('/')} onClockedIn={() => navigate('/console')} />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/console"
-        element={
-          <RequireAuth authed={authed}>
-            <Console device={device} onLogout={logout} />
+            <KdsShell device={device} onLogout={logout}>
+              <Board />
+            </KdsShell>
           </RequireAuth>
         }
       />
