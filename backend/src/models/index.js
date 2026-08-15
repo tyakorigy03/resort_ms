@@ -28,6 +28,12 @@ const staffModel = require('./staff.model')
 const clockModel = require('./clock.model')
 const salePeriodModel = require('./salePeriod.model')
 const posOrderModel = require('./posOrder.model')
+const floorPlanModel = require('./floorPlan.model')
+const restaurantTableModel = require('./restaurantTable.model')
+const tableSessionModel = require('./tableSession.model')
+const orderCourseModel = require('./orderCourse.model')
+const kdsModel = require('./kds.model')
+const kdsSettingsModel = require('./kdsSettings.model')
 
 module.exports = {
   userModel,
@@ -60,4 +66,10 @@ module.exports = {
   clockModel,
   salePeriodModel,
   posOrderModel,
+  floorPlanModel,
+  restaurantTableModel,
+  tableSessionModel,
+  orderCourseModel,
+  kdsModel,
+  kdsSettingsModel,
 }
