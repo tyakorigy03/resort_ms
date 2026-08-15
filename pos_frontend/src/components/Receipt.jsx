@@ -3,9 +3,27 @@ import CloseIcon from '@mui/icons-material/Close'
 import { getDevice } from '../api'
 import { money } from '../format'
 
+function orderLines(order) {
+  const lines = []
+  for (const course of order.courses || []) {
+    for (const item of course.items || []) {
+      if (item.kdsStatus !== 'cancelled') {
+        lines.push({ id: `${course.id}-${item.id}`, quantity: item.quantity, itemName: item.itemName, lineTotal: item.lineTotal })
+      }
+    }
+  }
+  for (const item of order.unassignedItems || []) {
+    if (item.kdsStatus !== 'cancelled') {
+      lines.push({ id: `u-${item.id}`, quantity: item.quantity, itemName: item.itemName, lineTotal: item.lineTotal })
+    }
+  }
+  return lines
+}
+
 export default function Receipt({ order, onClose }) {
   const device = getDevice()
   const open = Boolean(order)
+  const lines = order ? orderLines(order) : []
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -23,10 +41,12 @@ export default function Receipt({ order, onClose }) {
               <span>{device?.outletName || ''}</span>
               <span>{new Date(order.completedAt || order.createdAt).toLocaleString()}</span>
               <span className="receipt-order">Order {order.orderNumber}</span>
+              {order.tableLabel && <span>Table {order.tableLabel}</span>}
+              {order.collectionCode && <span>Code {order.collectionCode}</span>}
             </div>
             <table className="receipt-items">
               <tbody>
-                {order.items.map((line) => (
+                {lines.map((line) => (
                   <tr key={line.id}>
                     <td>{line.quantity}× {line.itemName}</td>
                     <td>{money(line.lineTotal)}</td>
@@ -37,6 +57,7 @@ export default function Receipt({ order, onClose }) {
             <div className="receipt-totals">
               <div><span>Subtotal</span><span>{money(order.subtotal)}</span></div>
               {order.discount > 0 && <div><span>Discount</span><span>−{money(order.discount)}</span></div>}
+              {order.tip > 0 && <div><span>Tip</span><span>{money(order.tip)}</span></div>}
               <div className="receipt-grand"><span>Total</span><span>{money(order.total)}</span></div>
               {order.paymentMethod === 'cash' && (
                 <>

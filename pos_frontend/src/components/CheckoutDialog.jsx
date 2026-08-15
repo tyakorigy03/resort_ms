@@ -19,9 +19,10 @@ import { money } from '../format'
 
 const QUICK_AMOUNTS = [5, 10, 20, 50, 100]
 
-export default function CheckoutDialog({ open, onClose, cart, staffId, onPaid }) {
+export default function CheckoutDialog({ open, order, onClose, onPaid }) {
   const [method, setMethod] = useState('cash')
   const [discount, setDiscount] = useState('')
+  const [tip, setTip] = useState('')
   const [received, setReceived] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -32,29 +33,30 @@ export default function CheckoutDialog({ open, onClose, cart, staffId, onPaid })
       setBusy(false)
       setMethod('cash')
       setDiscount('')
+      setTip('')
       setReceived('')
     }
   }, [open])
 
-  const subtotal = cart.reduce((sum, l) => sum + l.unitPrice * l.qty, 0)
+  const subtotal = order?.subtotal || 0
   const disc = Math.min(Math.max(Number(discount) || 0, 0), subtotal)
-  const total = subtotal - disc
+  const tipN = Math.max(Number(tip) || 0, 0)
+  const total = Math.round((subtotal - disc) * 100) / 100 + tipN
   const tendered = Number(received) || 0
-  const change = tendered - total
+  const change = Math.round((tendered - total) * 100) / 100
 
   async function pay() {
     if (busy) return
     setBusy(true)
     setError(null)
     try {
-      const order = await api.createOrder({
-        items: cart.map((l) => ({ itemId: l.itemId, quantity: l.qty })),
-        discount: disc,
+      const paid = await api.checkout(order.id, {
         paymentMethod: method,
         paymentReceived: method === 'cash' ? tendered : total,
-        staffId,
+        discount: disc,
+        tip: tipN,
       })
-      onPaid(order)
+      onPaid(paid)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -82,11 +84,22 @@ export default function CheckoutDialog({ open, onClose, cart, staffId, onPaid })
           label="Discount"
           placeholder="0.00"
           type="number"
-          inputProps={{ min: 0, step: 0.01, inputMode: 'decimal' }}
+          slotProps={{ htmlInput: { min: 0, step: 0.01, inputMode: 'decimal' } }}
           size="small"
           fullWidth
           value={discount}
           onChange={(e) => setDiscount(e.target.value)}
+          sx={{ mt: 1 }}
+        />
+        <TextField
+          label="Tip"
+          placeholder="0.00"
+          type="number"
+          slotProps={{ htmlInput: { min: 0, step: 0.01, inputMode: 'decimal' } }}
+          size="small"
+          fullWidth
+          value={tip}
+          onChange={(e) => setTip(e.target.value)}
           sx={{ mt: 1 }}
         />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1, borderTop: 2, borderColor: 'divider' }}>
@@ -115,10 +128,10 @@ export default function CheckoutDialog({ open, onClose, cart, staffId, onPaid })
         {method === 'cash' && (
           <Box>
             <TextField
-              label="Amount tendered"
+              label="Recieved amount"
               placeholder="0.00"
               type="number"
-              inputProps={{ min: 0, step: 0.01, inputMode: 'decimal' }}
+              slotProps={{ htmlInput: { min: 0, step: 0.01, inputMode: 'decimal' } }}
               size="small"
               fullWidth
               value={received}
@@ -159,7 +172,7 @@ export default function CheckoutDialog({ open, onClose, cart, staffId, onPaid })
             onClick={pay}
             disabled={busy || (method === 'cash' && tendered < total)}
           >
-            {busy ? 'Processing…' : `Charge ${money(total)}`}
+            {busy ? 'Processing…' : `Pay - $${money(total)}`}
           </Button>
         </DialogActions>
       </DialogContent>

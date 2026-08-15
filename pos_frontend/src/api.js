@@ -64,4 +64,31 @@ export const api = {
 
   ordersToday: () => request('/api/pos-orders?date=today'),
   createOrder: (body) => request('/api/pos-orders', { method: 'POST', body }),
+
+  floorPlans: () => request('/api/floor-plans'),
+  tables: (floorPlanId) => request(`/api/tables?floorPlanId=${floorPlanId}`),
+  tableSessionsActive: () => request('/api/table-sessions/active'),
+  tableSessionOpen: (body) => request('/api/table-sessions/open', { method: 'POST', body }),
+  tableSessionClose: (id) => request(`/api/table-sessions/${id}/close`, { method: 'POST', body: {} }),
+
+  posOrders: (params = {}) => {
+    const qs = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&')
+    return request(`/api/pos-orders${qs ? `?${qs}` : ''}`)
+  },
+  posOrder: (id) => request(`/api/pos-orders/${id}`),
+  updateOrder: (id, body) => request(`/api/pos-orders/${id}`, { method: 'PUT', body }),
+  addItems: (id, items) => request(`/api/pos-orders/${id}/items`, { method: 'POST', body: { items } }),
+  removeItem: (id, itemId) => request(`/api/pos-orders/${id}/items/${itemId}`, { method: 'DELETE' }),
+  refundItem: (id, itemId) => request(`/api/pos-orders/${id}/items/${itemId}/refund`, { method: 'POST', body: {} }),
+  moveItem: (id, itemId, body) => request(`/api/pos-orders/${id}/items/${itemId}/move`, { method: 'PATCH', body }),
+  addCourse: (id) => request(`/api/pos-orders/${id}/courses`, { method: 'POST', body: {} }),
+  fireCourse: (id, courseId) => request(`/api/pos-orders/${id}/courses/${courseId}/fire`, { method: 'POST', body: {} }),
+  splitCheck: (id) => request(`/api/pos-orders/${id}/split`, { method: 'POST', body: {} }),
+  checkout: (id, body) => request(`/api/pos-orders/${id}/checkout`, { method: 'POST', body }),
+
+  customers: () => request('/api/customers'),
+  createCustomer: (body) => request('/api/customers', { method: 'POST', body }),
 }

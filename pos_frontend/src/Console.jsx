@@ -1,217 +1,425 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Alert,
-  AppBar,
-  Avatar,
   Box,
   Button,
   Chip,
   CircularProgress,
+  Divider,
   IconButton,
   InputAdornment,
   Paper,
   TextField,
-  Toolbar,
   Typography,
 } from '@mui/material'
-import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
-import LockIcon from '@mui/icons-material/Lock'
+import GroupsIcon from '@mui/icons-material/Groups'
 import PersonIcon from '@mui/icons-material/Person'
-import RemoveIcon from '@mui/icons-material/Remove'
 import SearchIcon from '@mui/icons-material/Search'
+import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
+import CallSplitIcon from '@mui/icons-material/CallSplit'
 import StorefrontIcon from '@mui/icons-material/Storefront'
-import { api, clearSession } from './api'
-import ClockInDialog from './components/ClockInDialog'
-import SalePeriodDialog from './components/SalePeriodDialog'
+import { api } from './api'
+import { useShell } from './PosShell'
+import { money } from './format'
 import CheckoutDialog from './components/CheckoutDialog'
 import Receipt from './components/Receipt'
-import { money } from './format'
+import CustomerDialog from './components/CustomerDialog'
+import ItemDetailDialog from './components/ItemDetailDialog'
 
-const MY_SHIFT_KEY = 'pos_my_shift'
+export default function Console() {
+  const { myShift, refresh } = useShell()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-function loadMyShift() {
-  try {
-    return JSON.parse(localStorage.getItem(MY_SHIFT_KEY) || 'null')
-  } catch {
-    return null
-  }
-}
-
-export default function Console({ device, onLogout }) {
+  const [openOrders, setOpenOrders] = useState([])
+  const [activeOrderId, setActiveOrderId] = useState(null)
+  const [order, setOrder] = useState(null)
   const [items, setItems] = useState([])
-  const [period, setPeriod] = useState(null)
-  const [myShift, setMyShift] = useState(loadMyShift)
-  const [cart, setCart] = useState([])
-  const [category, setCategory] = useState('all')
+  const [activeCourseId, setActiveCourseId] = useState(null)
   const [search, setSearch] = useState('')
-  const [clock, setClock] = useState(new Date())
-  const [today, setToday] = useState({ count: 0, total: 0 })
+  const [category, setCategory] = useState('all')
+  const [detailItem, setDetailItem] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [receipt, setReceipt] = useState(null)
   const [error, setError] = useState(null)
-  const [drawerMsg, setDrawerMsg] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.items(), api.salePeriodCurrent(), api.clockActive(), api.ordersToday()])
-      .then(([itemList, currentPeriod, , orders]) => {
-        setItems(itemList.filter((i) => i.mainPrice !== null && i.mainPrice !== undefined))
-        setPeriod(currentPeriod)
-        setToday({
-          count: orders.length,
-          total: orders.reduce((s, o) => s + o.total, 0),
-        })
-      })
+    api
+      .items()
+      .then((list) => setItems(list.filter((i) => i.mainPrice !== null && i.mainPrice !== undefined)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-
-    const timer = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(timer)
   }, [])
 
+  async function refreshOpenOrders() {
+    try {
+      const list = await api.posOrders({ status: 'open' })
+      setOpenOrders(list)
+      return list
+    } catch (err) {
+      setError(err.message)
+      return []
+    }
+  }
+
   useEffect(() => {
-    localStorage.setItem(MY_SHIFT_KEY, JSON.stringify(myShift))
-  }, [myShift])
+    refreshOpenOrders()
+  }, [])
+
+  // Initial context: seated table session (and its open order) coming from the
+  // Tables screen. Pickup/delivery orders are created inline on demand.
+  useEffect(() => {
+    const state = location.state
+    if (!state) return
+    if (state.orderId) {
+      setActiveOrderId(state.orderId)
+    } else if (state.sessionId) {
+      ;(async () => {
+        try {
+          const created = await api.createOrder({
+            tableSessionId: state.sessionId,
+            staffId: myShift?.staffId || null,
+            covers: null,
+          })
+          setActiveOrderId(created.id)
+        } catch (err) {
+          setError(err.message)
+        }
+      })()
+    }
+    window.history.replaceState({}, '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
+
+  async function loadOrder(id) {
+    setBusy(true)
+    setError(null)
+    try {
+      const o = await api.posOrder(id)
+      setOrder(o)
+      if (o.status !== 'open') {
+        setActiveOrderId(null)
+        setOrder(null)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!activeOrderId) {
+      setOrder(null)
+      setActiveCourseId(null)
+      return
+    }
+    loadOrder(activeOrderId)
+  }, [activeOrderId])
+
+  useEffect(() => {
+    if (order?.courses?.length && !activeCourseId) {
+      setActiveCourseId(order.courses[0].id)
+    }
+  }, [order])
+
+  const activeCourse = useMemo(() => {
+    if (!order || !activeCourseId) return null
+    return order.courses.find((c) => c.id === activeCourseId) || null
+  }, [order, activeCourseId])
 
   const categories = useMemo(() => {
-    const set = new Set(items.map((i) => i.category).filter(Boolean))
+    const set = new Set(items.map((i) => i.accountingGroup).filter(Boolean))
     return ['all', ...set]
   }, [items])
 
   const visibleItems = useMemo(() => {
     const q = search.trim().toLowerCase()
     return items.filter((i) => {
-      if (category !== 'all' && i.category !== category) return false
+      if (category !== 'all' && i.accountingGroup !== category) return false
       if (q && !i.name.toLowerCase().includes(q)) return false
       return true
     })
   }, [items, category, search])
 
-  const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
+  const unassignedItems = order?.unassignedItems || []
+  const subtotal = order?.subtotal || 0
+  const lineCount =
+    (order?.courses || []).reduce((s, c) => s + (c.items || []).length, 0) +
+    (order?.unassignedItems || []).length
 
-  function addItem(item) {
+  async function addItem(item) {
+    if (!order) return
     setError(null)
-    setCart((prev) => {
-      const existing = prev.find((l) => l.itemId === item.id)
-      if (existing) {
-        return prev.map((l) => (l.itemId === item.id ? { ...l, qty: l.qty + 1 } : l))
-      }
-      return [...prev, { itemId: item.id, name: item.name, unitPrice: item.mainPrice, qty: 1 }]
-    })
-  }
-
-  function setQty(itemId, qty) {
-    setCart((prev) =>
-      qty <= 0
-        ? prev.filter((l) => l.itemId !== itemId)
-        : prev.map((l) => (l.itemId === itemId ? { ...l, qty } : l)),
-    )
-  }
-
-  async function refresh() {
     try {
-      const [currentPeriod, activeShifts, orders] = await Promise.all([
-        api.salePeriodCurrent(),
-        api.clockActive(),
-        api.ordersToday(),
+      const updated = await api.addItems(order.id, [
+        { itemId: item.id, quantity: 1, courseId: activeCourseId || order.courses[0]?.id },
       ])
-      setPeriod(currentPeriod)
-      setToday({ count: orders.length, total: orders.reduce((s, o) => s + o.total, 0) })
-      if (myShift && !activeShifts.some((s) => s.id === myShift.id)) {
-        setMyShift(null)
-      }
+      setOrder(updated)
     } catch (err) {
       setError(err.message)
     }
   }
 
-  function logout() {
-    clearSession()
-    onLogout()
+  async function switchOrder(id) {
+    setActiveOrderId(id)
+    setActiveCourseId(null)
   }
 
-  async function openDrawer() {
+  function openEmptyRegister() {
+    setActiveOrderId(null)
+    navigate('/register', { replace: true, state: null })
+  }
+
+  async function startTakeaway() {
+    setBusy(true)
     setError(null)
     try {
-      const res = await api.drawerOpen()
-      setDrawerMsg(res.opened ? 'Cash drawer opened.' : res.reason)
+      const created = await api.createOrder({
+        orderType: 'pickup',
+        staffId: myShift?.staffId || null,
+      })
+      setActiveOrderId(created.id)
     } catch (err) {
       setError(err.message)
+    } finally {
+      setBusy(false)
     }
+  }
+
+  async function handleFireCourse() {
+    if (!order || !activeCourseId) return
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.fireCourse(order.id, activeCourseId)
+      setOrder(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleAddCourse() {
+    if (!order) return
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.addCourse(order.id)
+      setOrder(updated)
+      setActiveCourseId(updated.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSplit() {
+    if (!order) return
+    setBusy(true)
+    setError(null)
+    try {
+      const orders = await api.splitCheck(order.id)
+      setOrder(orders[0])
+      setActiveCourseId(orders[0].courses[0]?.id)
+      refreshOpenOrders()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCustomer(customer) {
+    if (!order) return
+    setDialog(null)
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.updateOrder(order.id, { customerId: customer.id })
+      setOrder(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleQty(item, qty) {
+    if (qty < 1) return
+    if (qty === item.quantity) return
+    setBusy(true)
+    setError(null)
+    try {
+      // Backend has no quantity-edit endpoint, so edit in place by removing the
+      // line and re-adding it at the new quantity (same course + seat).
+      await api.removeItem(order.id, item.id)
+      const updated = await api.addItems(order.id, [
+        { itemId: item.itemId, quantity: qty, courseId: item.courseId, seatNumber: item.seatNumber },
+      ])
+      setOrder(updated)
+      setDetailItem(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSeat(item, seatNumber) {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.moveItem(order.id, item.id, { seatNumber })
+      setOrder(updated)
+      setDetailItem(findLine(updated, item.id) || null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCourse(item, courseId) {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.moveItem(order.id, item.id, { courseId })
+      setOrder(updated)
+      setDetailItem(findLine(updated, item.id) || null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRefund(item) {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.refundItem(order.id, item.id)
+      setOrder(updated)
+      setDetailItem(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRemove(item) {
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.removeItem(order.id, item.id)
+      setOrder(updated)
+      setDetailItem(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onPaid(paid) {
+    setReceipt(paid)
+    setDialog(null)
+    setOrder(null)
+    setActiveOrderId(null)
+    setActiveCourseId(null)
+    refresh()
+    refreshOpenOrders()
   }
 
   if (loading) {
     return (
-      <Box sx={{ height: '100svh', display: 'grid', placeItems: 'center', bgcolor: '#f1f5f9' }}>
+      <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
         <CircularProgress />
       </Box>
     )
   }
 
-  return (
-    <Box sx={{ height: '100svh', display: 'flex', flexDirection: 'column', bgcolor: '#f1f5f9' }}>
-      <AppBar position="static" elevation={0}>
-        <Toolbar sx={{ gap: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
-            <Avatar sx={{ bgcolor: 'primary.light', color: 'primary.main', width: 38, height: 38 }}>
-              <StorefrontIcon fontSize="small" />
-            </Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ lineHeight: 1.2, fontWeight: 700, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                {device?.name}
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.8, lineHeight: 1.2, display: 'block' }}>
-                {device?.outletName || 'Restaurant'}
-              </Typography>
+  const tabsBar = (
+    <Box sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.25 }}>
+      {openOrders.map((o) => (
+        <Chip
+          key={o.id}
+          label={o.id === order?.id ? `${o.orderNumber} · ${o.tableLabel || o.collectionCode || o.orderType}` : `${o.tableLabel || o.collectionCode || o.orderNumber}`}
+          color={o.id === order?.id ? 'primary' : 'default'}
+          variant={o.id === order?.id ? 'filled' : 'outlined'}
+          onClick={() => switchOrder(o.id)}
+        />
+      ))}
+      <Chip
+        icon={<AddIcon />}
+        label="New"
+        variant="outlined"
+        onClick={openEmptyRegister}
+      />
+    </Box>
+  )
+
+  // Empty register: nothing selected yet.
+  if (!order) {
+    return (
+      <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1.5 }}>
+        {error && (
+          <Alert
+            severity="error"
+            sx={{ fontSize: '0.85rem' }}
+            action={
+              <IconButton size="small" onClick={() => setError(null)}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            }
+          >
+            {error}
+          </Alert>
+        )}
+        {tabsBar}
+        <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
+          <Paper variant="outlined" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
+            <StorefrontIcon sx={{ fontSize: 56, color: 'text.secondary', mb: 1 }} />
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+              No order selected
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Seat a table to start a dine-in order, or start a takeaway directly.
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={<TableRestaurantIcon />}
+                onClick={() => navigate('/tables')}
+              >
+                Seat a table
+              </Button>
+              <Button variant="outlined" onClick={startTakeaway} disabled={busy}>
+                Start a takeaway
+              </Button>
             </Box>
-          </Box>
+          </Paper>
+        </Box>
+        <Receipt order={receipt} onClose={() => setReceipt(null)} />
+      </Box>
+    )
+  }
 
-          <Box sx={{ flexGrow: 1 }} />
-
-          <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
-            label={period ? `Open since ${fmtTime(period.openedAt)}` : 'Sales period closed'}
-            color={period ? 'success' : 'error'}
-            size="small"
-            clickable
-            onClick={() => setDialog('period')}
-            sx={{ fontWeight: 600 }}
-          />
-          <Chip
-            icon={<PersonIcon sx={{ fontSize: 16 }} />}
-            label={myShift ? `Serving: ${myShift.staffName}` : 'No cashier clocked in'}
-            color={myShift ? 'success' : 'default'}
-            size="small"
-            clickable
-            onClick={() => setDialog('staff')}
-            sx={{ fontWeight: 600 }}
-          />
-
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" sx={{ display: 'block', opacity: 0.8, lineHeight: 1.2 }}>
-              Today
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-              {today.count} orders · {money(today.total)}
-            </Typography>
-          </Box>
-
-          <Typography variant="h6" sx={{ fontVariantNumeric: 'tabular-nums', minWidth: 58, textAlign: 'right' }}>
-            {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Typography>
-
-          <IconButton color="inherit" size="small" onClick={logout} title="Lock">
-            <LockIcon fontSize="small" />
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
+  return (
+    <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1.5 }}>
       {error && (
         <Alert
           severity="error"
-          sx={{ m: 1 }}
+          sx={{ fontSize: '0.85rem' }}
           action={
             <IconButton size="small" onClick={() => setError(null)}>
               <CloseIcon fontSize="small" />
@@ -222,22 +430,61 @@ export default function Console({ device, onLogout }) {
         </Alert>
       )}
 
-      {drawerMsg && (
-        <Alert
-          severity="info"
-          sx={{ m: 1 }}
-          action={
-            <IconButton size="small" onClick={() => setDrawerMsg(null)}>
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          }
-        >
-          {drawerMsg}
-        </Alert>
-      )}
+      {/* Order tabs */}
+      {tabsBar}
 
-      <Box sx={{ flexGrow: 1, display: 'flex', gap: 1.5, p: 1.5, minHeight: 0 }}>
-        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+      <Paper variant="outlined" sx={{ p: 1.25, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <TableRestaurantIcon color="primary" />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+            {order.tableLabel ? `Table ${order.tableLabel}` : order.collectionCode ? `Code ${order.collectionCode}` : order.orderType}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
+            {order.orderNumber} · {order.status}
+          </Typography>
+        </Box>
+        <Box sx={{ flexGrow: 1 }} />
+        {order.covers && (
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+              Covers
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              {order.covers}
+            </Typography>
+          </Box>
+        )}
+        {order.staffName && (
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+              Served by
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              {order.staffName}
+            </Typography>
+          </Box>
+        )}
+        {order.customerName && (
+          <Chip icon={<PersonIcon />} label={order.customerName} color="success" variant="outlined" size="small" />
+        )}
+      </Paper>
+
+      <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1.5 }}>
+        {/* Left: course tabs + item grid + current course lines */}
+        <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', overflowX: 'auto' }}>
+            {order.courses.map((c) => (
+              <Chip
+                key={c.id}
+                label={c.firedAt ? `${c.name} ✓` : c.name}
+                color={activeCourseId === c.id ? 'fire' : 'default'}
+                variant={activeCourseId === c.id ? 'filled' : 'outlined'}
+                onClick={() => setActiveCourseId(c.id)}
+              />
+            ))}
+            <Chip icon={<AddIcon />} label="Add a course" variant="outlined" onClick={handleAddCourse} disabled={busy} />
+          </Box>
+
           <TextField
             size="small"
             fullWidth
@@ -254,7 +501,7 @@ export default function Console({ device, onLogout }) {
               },
             }}
           />
-          <Box sx={{ display: 'flex', gap: 1, py: 1, overflowX: 'auto' }}>
+          <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto' }}>
             {categories.map((c) => (
               <Chip
                 key={c}
@@ -263,20 +510,20 @@ export default function Console({ device, onLogout }) {
                 variant={category === c ? 'filled' : 'outlined'}
                 onClick={() => setCategory(c)}
                 size="small"
-                sx={{ textTransform: 'capitalize', fontWeight: 600, flexShrink: 0 }}
+                sx={{ textTransform: 'capitalize', flexShrink: 0 }}
               />
             ))}
           </Box>
+
           <Box
             sx={{
               flexGrow: 1,
+              minHeight: 140,
               overflowY: 'auto',
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: 1,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
               alignContent: 'start',
-              minHeight: 0,
-              pb: 0.5,
+              gap: 1,
             }}
           >
             {visibleItems.map((item) => (
@@ -285,14 +532,14 @@ export default function Console({ device, onLogout }) {
                 variant="outlined"
                 color="inherit"
                 onClick={() => addItem(item)}
+                disabled={busy}
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   justifyContent: 'space-between',
-                  minHeight: 92,
-                  p: 1.5,
-                  textTransform: 'none',
+                  minHeight: 82,
+                  p: 1.25,
                   borderRadius: 2,
                   bgcolor: 'background.paper',
                   '&:hover': { borderColor: 'primary.main' },
@@ -307,129 +554,185 @@ export default function Console({ device, onLogout }) {
               </Button>
             ))}
             {visibleItems.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ gridColumn: '1 / -1' }}>
+              <Typography variant="body2" color="text.secondary">
                 No items match.
               </Typography>
             )}
           </Box>
-        </Box>
 
-        <Paper variant="outlined" sx={{ width: 370, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', p: 1.5, pb: 0.5 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Current order
+          <Paper variant="outlined" sx={{ minHeight: 0, maxHeight: 220, overflowY: 'auto' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, p: 1, pb: 0.5 }}>
+              {activeCourse?.name || 'Items'} {activeCourse?.firedAt ? '· sent to kitchen' : ''}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {cart.length} lines
-            </Typography>
-          </Box>
-          <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1.5, minHeight: 0 }}>
-            {cart.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                Tap items to add them.
+            {(activeCourse?.items || []).map((line) => (
+              <OrderLine key={line.id} line={line} onClick={() => setDetailItem(line)} />
+            ))}
+            {unassignedItems.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, p: 1, pb: 0.5 }}>
+                  Before first course
+                </Typography>
+                {unassignedItems.map((line) => (
+                  <OrderLine key={line.id} line={line} onClick={() => setDetailItem(line)} />
+                ))}
+              </>
+            )}
+            {activeCourse?.items?.length === 0 && unassignedItems.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ p: 1, pt: 0.5 }}>
+                No items in this course yet.
               </Typography>
             )}
-            {cart.map((line) => (
-              <Box
-                key={line.itemId}
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto auto',
-                  gap: 1,
-                  alignItems: 'center',
-                  py: 1,
-                  borderBottom: '1px dashed',
-                  borderColor: 'divider',
-                }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {line.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {money(line.unitPrice)} each
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <IconButton size="small" onClick={() => setQty(line.itemId, line.qty - 1)}>
-                    <RemoveIcon fontSize="small" />
-                  </IconButton>
-                  <Typography variant="body2" sx={{ minWidth: 20, textAlign: 'center', fontWeight: 700 }}>
-                    {line.qty}
-                  </Typography>
-                  <IconButton size="small" onClick={() => setQty(line.itemId, line.qty + 1)}>
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-                <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 70, textAlign: 'right' }}>
-                  {money(line.unitPrice * line.qty)}
-                </Typography>
-              </Box>
-            ))}
+          </Paper>
+        </Box>
+
+        {/* Right: course actions + order actions + pay */}
+        <Paper variant="outlined" sx={{ width: 330, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+              {activeCourse?.name || 'Order'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {lineCount} items
+            </Typography>
           </Box>
-          <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body1">Subtotal</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                {money(subtotal)}
-              </Typography>
-            </Box>
+
+          <Box sx={{ p: 1.5, overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
+            <Button
+              fullWidth
+              size="large"
+              color="fire"
+              variant="contained"
+              disabled={busy || !activeCourse || activeCourse.firedAt || activeCourse.items.length === 0}
+              onClick={handleFireCourse}
+              startIcon={<LocalFireDepartmentIcon />}
+              sx={{ mb: 1.5, fontSize: 16, py: 1.5 }}
+            >
+              {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
+            </Button>
+
             <Button
               fullWidth
               variant="outlined"
               color="inherit"
-              size="large"
-              onClick={openDrawer}
-              sx={{ mb: 1, textTransform: 'none' }}
+              startIcon={<CallSplitIcon />}
+              disabled={busy}
+              onClick={handleSplit}
+              sx={{ mb: 1.5, textTransform: 'none' }}
             >
-              No sale (open drawer)
+              Split Check
             </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              color="inherit"
+              startIcon={<GroupsIcon />}
+              disabled={busy}
+              onClick={() => setDialog('customer')}
+              sx={{ mb: 1.5, textTransform: 'none' }}
+            >
+              Assign customer
+            </Button>
+
+            <Divider sx={{ my: 1.5 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="body1">Subtotal</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 800 }}>
+                {money(subtotal)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography variant="body1">Total</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 800 }}>
+                {money(subtotal)}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
             <Button
               fullWidth
               size="large"
-              variant="contained"
               color="success"
-              disabled={!period || cart.length === 0}
+              variant="contained"
+              disabled={busy}
               onClick={() => setDialog('checkout')}
+              sx={{ fontSize: 17, py: 1.5 }}
             >
-              {period ? 'Charge' : 'Open sales period first'}
+              Pay - $${money(subtotal)}
             </Button>
           </Box>
         </Paper>
       </Box>
 
-      <ClockInDialog
-        open={dialog === 'staff'}
-        onClose={() => setDialog(null)}
-        onChanged={() => {
-          refresh()
-          setMyShift(loadMyShift())
-        }}
-      />
-      <SalePeriodDialog
-        open={dialog === 'period'}
-        onClose={() => setDialog(null)}
-        period={period}
-        onChanged={refresh}
-      />
       <CheckoutDialog
         open={dialog === 'checkout'}
         onClose={() => setDialog(null)}
-        cart={cart}
-        staffId={myShift?.staffId}
-        onPaid={(order) => {
-          setCart([])
-          setDialog(null)
-          setReceipt(order)
-          refresh()
-        }}
+        order={order}
+        onPaid={onPaid}
+      />
+      <CustomerDialog open={dialog === 'customer'} onClose={() => setDialog(null)} onSelect={handleCustomer} />
+      <ItemDetailDialog
+        open={Boolean(detailItem)}
+        item={detailItem}
+        courses={order.courses}
+        covers={order.covers}
+        busy={busy}
+        onClose={() => setDetailItem(null)}
+        onQty={(qty) => handleQty(detailItem, qty)}
+        onSeat={(seat) => handleSeat(detailItem, seat)}
+        onCourse={(courseId) => handleCourse(detailItem, courseId)}
+        onRefund={(item) => handleRefund(item)}
+        onRemove={(item) => handleRemove(item)}
       />
       <Receipt order={receipt} onClose={() => setReceipt(null)} />
     </Box>
   )
 }
 
-function fmtTime(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+function OrderLine({ line, onClick }) {
+  const cancelled = line.kdsStatus === 'cancelled'
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto auto',
+        gap: 1,
+        alignItems: 'center',
+        px: 1.25,
+        py: 0.75,
+        borderBottom: '1px dashed',
+        borderColor: 'divider',
+        cursor: 'pointer',
+        '&:hover': { bgcolor: 'action.hover' },
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: cancelled ? 'line-through' : 'none', opacity: cancelled ? 0.6 : 1 }}>
+          {line.itemName}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {line.seatNumber ? `Seat ${line.seatNumber} · ` : ''}
+          {line.kdsStatus === 'cancelled' ? 'refunded' : line.kdsStatus}
+        </Typography>
+      </Box>
+      <Typography variant="body2" sx={{ fontWeight: 700, opacity: cancelled ? 0.6 : 1 }}>
+        ×{line.quantity}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 64, textAlign: 'right', opacity: cancelled ? 0.6 : 1 }}>
+        {money(line.lineTotal)}
+      </Typography>
+    </Box>
+  )
+}
+
+function findLine(order, id) {
+  if (!order) return null
+  for (const course of order.courses || []) {
+    const found = (course.items || []).find((i) => i.id === id)
+    if (found) return found
+  }
+  return (order.unassignedItems || []).find((i) => i.id === id) || null
 }

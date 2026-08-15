@@ -54,11 +54,14 @@ const BASE_SELECT = `
   LEFT JOIN restaurant_tables t ON t.id = ts.table_id
   LEFT JOIN floor_plans fp ON fp.id = t.floor_plan_id`
 
+// Selling price comes from the same source the POS menu shows: the default
+// price list's menu_prices. item_prices is a costing history, not the menu.
 async function findItemPrice(itemId) {
   const [rows] = await pool.query(
-    `SELECT selling_price AS price FROM item_prices
-     WHERE item_id = ? AND effective_from <= CURDATE()
-     ORDER BY effective_from DESC, id DESC LIMIT 1`,
+    `SELECT mp.price FROM menu_prices mp
+     JOIN price_lists pl ON pl.id = mp.price_list_id
+     WHERE mp.item_id = ? AND pl.is_default = 1
+     ORDER BY mp.id ASC LIMIT 1`,
     [itemId],
   )
   return rows[0] ? Number(rows[0].price) : null
@@ -81,7 +84,8 @@ async function stationsForItem(itemId) {
 async function buildOrderNumber(connection) {
   const [rows] = await connection.query(
     `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
-            (SELECT COUNT(*) FROM pos_orders WHERE DATE(created_at) = CURDATE()) AS n`,
+            (SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(order_number, '-', -1) AS UNSIGNED)), 0)
+             FROM pos_orders WHERE DATE(created_at) = CURDATE()) AS n`,
   )
   const { d, n } = rows[0]
   return `ORD-${d}-${String(Number(n) + 1).padStart(4, '0')}`

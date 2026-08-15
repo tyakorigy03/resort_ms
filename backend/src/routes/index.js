@@ -31,6 +31,11 @@ const clockRoutes = require('./clock.routes')
 const salePeriodRoutes = require('./salePeriod.routes')
 const posOrderRoutes = require('./posOrder.routes')
 const drawerRoutes = require('./drawer.routes')
+const floorPlanRoutes = require('./floorPlan.routes')
+const restaurantTableRoutes = require('./restaurantTable.routes')
+const tableSessionRoutes = require('./tableSession.routes')
+const kdsRoutes = require('./kds.routes')
+const kdsSettingsRoutes = require('./kdsSettings.routes')
 
 const router = express.Router()
 
@@ -70,5 +75,10 @@ router.use('/clock', clockRoutes)
 router.use('/sale-periods', salePeriodRoutes)
 router.use('/pos-orders', posOrderRoutes)
 router.use('/drawer', drawerRoutes)
+router.use('/floor-plans', floorPlanRoutes)
+router.use('/tables', restaurantTableRoutes)
+router.use('/table-sessions', tableSessionRoutes)
+router.use('/kds', kdsRoutes)
+router.use('/kds-settings', kdsSettingsRoutes)
 
 module.exports = router

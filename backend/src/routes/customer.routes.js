@@ -1,10 +1,11 @@
 const express = require('express')
 const { customerModel } = require('../models')
-const { verifyToken } = require('../middlewares/auth')
+const { verifyToken, verifyAny } = require('../middlewares/auth')
 
 const router = express.Router()
 
-router.get('/', verifyToken, async (req, res, next) => {
+// POS devices read and create customers too (Assign customer on an order).
+router.get('/', verifyAny, async (req, res, next) => {
   try {
     res.json(await customerModel.findAll())
   } catch (error) {
@@ -12,7 +13,7 @@ router.get('/', verifyToken, async (req, res, next) => {
   }
 })
 
-router.post('/', verifyToken, async (req, res, next) => {
+router.post('/', verifyAny, async (req, res, next) => {
   try {
     const { firstName, lastName } = req.body
     if (!firstName || !lastName) return res.status(400).json({ message: 'First and last name are required' })
