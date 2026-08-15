@@ -50,6 +50,7 @@ import BadgeIcon from '@mui/icons-material/Badge'
 import ChecklistRtlIcon from '@mui/icons-material/ChecklistRtl'
 import GroupIcon from '@mui/icons-material/Group'
 import EngineeringIcon from '@mui/icons-material/Engineering'
+import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
 import { useAuth } from '../context/AuthContext'
 
 const DRAWER_WIDTH = 240
@@ -62,6 +63,7 @@ const SIDEBAR_BG = '#1C2333' // matches the dark navy panel in the reference des
 const navConfig = [
   { label: 'Dashboard', icon: <SpaceDashboardIcon />, path: '/dashboard' },
   { label: 'Reports', icon: <AssessmentIcon />, path: '/reports' },
+  { label: 'Floor Plans', icon: <TableRestaurantIcon />, path: '/floor-plans' },
   {
     label: 'Configuration',
     icon: <SettingsIcon />,

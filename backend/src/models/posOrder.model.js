@@ -621,6 +621,36 @@ async function listByOutlet(outletId, { date, periodId, status, orderType, searc
   return orders
 }
 
+// Quick operational counters for dashboards (all outlets, backoffice).
+async function getStats() {
+  const [[{ openOrders }]] = await pool.query("SELECT COUNT(*) AS openOrders FROM pos_orders WHERE status = 'open'")
+  const [[{ ordersToday }]] = await pool.query(
+    'SELECT COUNT(*) AS ordersToday FROM pos_orders WHERE DATE(created_at) = CURDATE()',
+  )
+  const [[{ revenueToday }]] = await pool.query(
+    `SELECT COALESCE(SUM(total + IFNULL(tip, 0)), 0) AS revenueToday
+     FROM pos_orders WHERE status = 'paid' AND DATE(created_at) = CURDATE()`,
+  )
+  const [[{ openTables }]] = await pool.query(
+    "SELECT COUNT(*) AS openTables FROM table_sessions WHERE status = 'open'",
+  )
+  const [[{ kitchenActive }]] = await pool.query(
+    `SELECT COUNT(*) AS kitchenActive FROM pos_order_items
+     WHERE is_station_copy = 0 AND kds_status IN ('new', 'preparing', 'ready')`,
+  )
+  const [[{ floorPlans }]] = await pool.query('SELECT COUNT(*) AS floorPlans FROM floor_plans')
+  const [tables] = await pool.query('SELECT COUNT(*) AS total FROM restaurant_tables')
+  return {
+    openOrders: Number(openOrders),
+    ordersToday: Number(ordersToday),
+    revenueToday: Number(revenueToday),
+    openTables: Number(openTables),
+    kitchenActive: Number(kitchenActive),
+    floorPlans: Number(floorPlans),
+    restaurantTables: Number(tables[0]?.total || 0),
+  }
+}
+
 module.exports = {
   createOpen,
   updateOrder,
@@ -633,4 +663,5 @@ module.exports = {
   findById,
   listByOutlet,
   stationsForItem,
+  getStats,
 }

@@ -33,6 +33,7 @@ import RoomStatus from './pages/housekeeping/roomStatus'
 import HousekeepingTasks from './pages/housekeeping/tasks'
 import Staff from './pages/staff/staff'
 import Users from './pages/Users'
+import FloorPlans from './pages/floorPlans/floorPlans'
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
+            <Route path="/floor-plans" element={<FloorPlans />} />
             <Route path="/inventory/inventory" element={<Inventory />} />
             <Route path="/inventory/inventory/items" element={<Items />} />
             <Route path="/inventory/inventory/stock-counts" element={<StockCounts />} />

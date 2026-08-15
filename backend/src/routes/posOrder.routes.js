@@ -1,6 +1,6 @@
 const express = require('express')
 const { posOrderModel, orderCourseModel, salePeriodModel } = require('../models')
-const { verifyDevice } = require('../middlewares/auth')
+const { verifyDevice, verifyAny } = require('../middlewares/auth')
 
 const router = express.Router()
 
@@ -24,6 +24,15 @@ router.get('/', verifyDevice, async (req, res, next) => {
         limit: req.query.limit,
       }),
     )
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Dashboard counters. Works for backoffice users and POS devices.
+router.get('/stats', verifyAny, async (req, res, next) => {
+  try {
+    res.json(await posOrderModel.getStats())
   } catch (error) {
     next(error)
   }
