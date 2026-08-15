@@ -40,8 +40,9 @@ export const tokens = {
   },
 }
 
-export function buildTheme(mode) {
+export function buildTheme(mode, opts = {}) {
   const t = tokens[mode === 'light' ? 'light' : 'dark']
+  const radius = opts.radius ?? 10
   return createTheme({
     palette: {
       mode,
@@ -58,7 +59,7 @@ export function buildTheme(mode) {
     typography: {
       fontFamily: "'Poppins', 'Roboto', sans-serif",
     },
-    shape: { borderRadius: 10 },
+    shape: { borderRadius: radius },
     components: {
       MuiPaper: {
         styleOverrides: {
@@ -77,6 +78,16 @@ export function buildTheme(mode) {
       },
       MuiAppBar: {
         styleOverrides: { root: { backgroundImage: 'none' } },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: { borderRadius: radius },
+        },
+      },
+      MuiPopover: {
+        styleOverrides: {
+          paper: { borderRadius: radius },
+        },
       },
     },
   })
