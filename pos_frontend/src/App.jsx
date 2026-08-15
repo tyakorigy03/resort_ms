@@ -72,7 +72,7 @@ export default function App() {
         path="/"
         element={
           <RequireAuth authed={authed}>
-            <Welcome device={device} onClockInOut={() => navigate('/clock')} />
+            <Welcome device={device} />
           </RequireAuth>
         }
       />

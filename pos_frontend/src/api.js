@@ -62,6 +62,9 @@ export const api = {
 
   drawerOpen: () => request('/api/drawer/open', { method: 'POST' }),
 
+  drawerToday: (drawerId) => request(`/api/cash-drawers/${drawerId}/today`),
+  drawerConfirm: (drawerId, body) => request(`/api/cash-drawers/${drawerId}/confirm`, { method: 'POST', body }),
+
   ordersToday: () => request('/api/pos-orders?date=today'),
   createOrder: (body) => request('/api/pos-orders', { method: 'POST', body }),
 

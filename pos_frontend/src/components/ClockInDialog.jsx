@@ -22,10 +22,10 @@ import { api } from '../api'
 import { saveMyShift, clearMyShiftIf } from '../myShift'
 import KeyPad from './KeyPad'
 
-export default function ClockInDialog({ open, onClose, onChanged }) {
+export default function ClockInDialog({ open, onClose, onChanged, initialStaffId, initialStep }) {
   const [staffList, setStaffList] = useState([])
   const [shifts, setShifts] = useState([])
-  const [step, setStep] = useState('list')
+  const [step, setStep] = useState(initialStep || 'list')
   const [selected, setSelected] = useState(null)
   const [pin, setPin] = useState('')
   const [qrCode, setQrCode] = useState('')
@@ -34,8 +34,12 @@ export default function ClockInDialog({ open, onClose, onChanged }) {
 
   useEffect(() => {
     if (!open) return
+    setStep(initialStep || 'list')
+    setSelected(null)
+    setPin('')
+    setQrCode('')
     load()
-  }, [open])
+  }, [open, initialStaffId, initialStep])
 
   async function load() {
     setError(null)
@@ -43,6 +47,13 @@ export default function ClockInDialog({ open, onClose, onChanged }) {
       const [staff, active] = await Promise.all([api.staffActive(), api.clockActive()])
       setStaffList(staff)
       setShifts(active)
+      if (initialStaffId) {
+        const target = staff.find((s) => s.id === initialStaffId)
+        if (target && !active.some((s) => s.staffId === target.id)) {
+          setSelected(target)
+          setStep(target.hasPin ? 'pin' : 'qrcode')
+        }
+      }
     } catch (err) {
       setError(err.message)
     }
