@@ -21,7 +21,7 @@ const STATUS_LABEL = {
 export default function TicketCard({ ticket, settings, now, onAdvance }) {
   const elapsed = elapsedSince(ticket.items[0]?.firedAt || ticket.courseFiredAt, now)
   const completed = ticket.items.every((i) => i.kdsStatus === 'completed' || i.kdsStatus === 'cancelled')
-  const compact = settings.ticketView === 'condensed'
+  const compact = settings?.ticketView === 'condensed'
 
   return (
     <Paper
@@ -47,10 +47,10 @@ export default function TicketCard({ ticket, settings, now, onAdvance }) {
             {!ticket.tableLabel && ticket.collectionCode && (
               <Chip size="small" label={`Code ${ticket.collectionCode}`} variant="outlined" />
             )}
-            {settings.showOrderTypeFilters && (
+            {settings?.showOrderTypeFilters && (
               <Chip size="small" label={ticket.orderType} variant="outlined" sx={{ textTransform: 'capitalize' }} />
             )}
-            {settings.showOrderStatusFilters && (
+            {settings?.showOrderStatusFilters && (
               <Chip
                 size="small"
                 label={ticket.orderStatus}
@@ -79,7 +79,7 @@ export default function TicketCard({ ticket, settings, now, onAdvance }) {
         </Box>
       </Box>
 
-      {settings.showStationFilters && (
+      {settings?.showStationFilters && (
         <Typography variant="caption" color="text.secondary">
           {ticket.floorPlanName || 'Kitchen'}
         </Typography>

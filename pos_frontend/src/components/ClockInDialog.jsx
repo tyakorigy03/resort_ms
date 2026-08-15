@@ -19,6 +19,7 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { api } from '../api'
+import { saveMyShift, clearMyShiftIf } from '../myShift'
 import KeyPad from './KeyPad'
 
 export default function ClockInDialog({ open, onClose, onChanged }) {
@@ -64,8 +65,9 @@ export default function ClockInDialog({ open, onClose, onChanged }) {
     setError(null)
     try {
       const body = selected.hasPin ? { staffId: selected.id, pin } : { qrCode: qrCode.trim() }
-      await api.clockIn(body)
-      onChanged()
+      const event = await api.clockIn(body)
+      saveMyShift(event)
+      onChanged(event)
       reset()
     } catch (err) {
       setError(err.message)
@@ -81,6 +83,7 @@ export default function ClockInDialog({ open, onClose, onChanged }) {
     setError(null)
     try {
       await api.clockOut(eventId)
+      clearMyShiftIf(eventId)
       onChanged()
       await load()
     } catch (err) {

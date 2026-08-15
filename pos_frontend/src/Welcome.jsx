@@ -4,7 +4,7 @@ import logo from './assets/logo.png'
 
 export default function Welcome({ device, onClockInOut }) {
   return (
-    <Box sx={{ height: '100svh', display: 'flex', bgcolor: '#f1f5f9' }}>
+    <Box sx={{ height: '100svh', display: 'flex', bgcolor: 'background.default' }}>
       <Box
         sx={{
           width: '33.333%',

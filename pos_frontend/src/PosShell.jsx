@@ -14,7 +14,6 @@ import {
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
-import LockIcon from '@mui/icons-material/Lock'
 import PersonIcon from '@mui/icons-material/Person'
 import RestaurantIcon from '@mui/icons-material/Restaurant'
 import StorefrontIcon from '@mui/icons-material/Storefront'
@@ -25,19 +24,10 @@ import ReceiptIcon from '@mui/icons-material/Receipt'
 import SettingsIcon from '@mui/icons-material/Settings'
 import { api, clearSession } from './api'
 import { money } from './format'
+import { saveMyShift, loadMyShift, clearMyShift } from './myShift'
 import { useThemeMode } from './ThemeModeProvider'
 import ClockInDialog from './components/ClockInDialog'
 import SalePeriodDialog from './components/SalePeriodDialog'
-
-const MY_SHIFT_KEY = 'pos_my_shift'
-
-function loadMyShift() {
-  try {
-    return JSON.parse(localStorage.getItem(MY_SHIFT_KEY) || 'null')
-  } catch {
-    return null
-  }
-}
 
 const ShellContext = createContext(null)
 
@@ -78,7 +68,7 @@ export default function PosShell({ device, onLogout, children }) {
       })
       if (myShift && !activeShifts.some((s) => s.id === myShift.id)) {
         setMyShift(null)
-        localStorage.removeItem(MY_SHIFT_KEY)
+        clearMyShift()
       }
     } catch {
       /* shell keeps working; screens surface errors */
@@ -86,7 +76,8 @@ export default function PosShell({ device, onLogout, children }) {
   }
 
   useEffect(() => {
-    localStorage.setItem(MY_SHIFT_KEY, JSON.stringify(myShift))
+    if (myShift) saveMyShift(myShift)
+    else clearMyShift()
   }, [myShift])
 
   useEffect(() => {
@@ -97,7 +88,7 @@ export default function PosShell({ device, onLogout, children }) {
 
   function logout() {
     clearSession()
-    localStorage.removeItem(MY_SHIFT_KEY)
+    clearMyShift()
     onLogout()
   }
 
@@ -172,8 +163,8 @@ export default function PosShell({ device, onLogout, children }) {
             <IconButton color="inherit" size="small" onClick={toggleMode} title="Toggle theme">
               {mode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
             </IconButton>
-            <IconButton color="inherit" size="small" onClick={logout} title="Lock">
-              <LockIcon fontSize="small" />
+            <IconButton color="inherit" size="small" onClick={() => setDialog('staff')} title="Clock in / out">
+              <AccessTimeIcon fontSize="small" />
             </IconButton>
           </Toolbar>
         </AppBar>
@@ -181,6 +172,7 @@ export default function PosShell({ device, onLogout, children }) {
         <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{children}</Box>
 
         <BottomNavigation
+          showLabels
           value={currentTab}
           onChange={(_, v) => navigate(v)}
           sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'topBar' }}
@@ -193,9 +185,9 @@ export default function PosShell({ device, onLogout, children }) {
         <ClockInDialog
           open={dialog === 'staff'}
           onClose={() => setDialog(null)}
-          onChanged={() => {
+          onChanged={(event) => {
             refresh()
-            setMyShift(loadMyShift())
+            if (event?.id && !event.clockedOutAt) setMyShift(event)
           }}
         />
         <SalePeriodDialog

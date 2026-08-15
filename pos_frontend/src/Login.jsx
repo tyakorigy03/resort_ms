@@ -35,7 +35,7 @@ export default function Login({ onAuth }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#f5f5f5',
+        bgcolor: 'background.default',
         p: 2,
       }}
     >

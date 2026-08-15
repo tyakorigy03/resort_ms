@@ -101,7 +101,7 @@ export default function Board() {
       )}
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-        {settings.showOrderStatusFilters && (
+        {settings?.showOrderStatusFilters && (
           <>
             {['all', 'open', 'paid'].map((s) => (
               <Chip
@@ -115,7 +115,7 @@ export default function Board() {
             ))}
           </>
         )}
-        {settings.showOrderTypeFilters && (
+        {settings?.showOrderTypeFilters && (
           <>
             {['all', 'dine_in', 'pickup', 'delivery'].map((t) => (
               <Chip
@@ -161,7 +161,7 @@ export default function Board() {
           minHeight: 0,
           overflowY: 'auto',
           display: 'grid',
-          gridTemplateColumns: `repeat(${Math.min(Math.max(Number(settings.layouts?.columns) || 3, 1), 6)}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${Math.min(Math.max(Number(settings?.layouts?.columns) || 3, 1), 6)}, minmax(0, 1fr))`,
           alignContent: 'start',
           gap: 1,
         }}

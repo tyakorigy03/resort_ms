@@ -50,8 +50,8 @@ export default function KdsShell({ device, onLogout, children }) {
 
   async function updateSettings(patch) {
     const next = { ...settings, ...patch }
-    if (patch.layouts) next.layouts = { ...settings.layouts, ...patch.layouts }
-    if (patch.waitTimes) next.waitTimes = { ...settings.waitTimes, ...patch.waitTimes }
+    if (patch.layouts) next.layouts = { ...settings?.layouts, ...patch.layouts }
+    if (patch.waitTimes) next.waitTimes = { ...settings?.waitTimes, ...patch.waitTimes }
     setSettings(next)
     if (patch.colorTheme) setModeTo(patch.colorTheme)
     try {

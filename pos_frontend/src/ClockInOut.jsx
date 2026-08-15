@@ -60,7 +60,7 @@ export default function ClockInOut({ onBack, onClockedIn }) {
   }
 
   return (
-    <Box sx={{ height: '100svh', display: 'flex', flexDirection: 'column', bgcolor: '#f1f5f9' }}>
+    <Box sx={{ height: '100svh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <AppBar position="static" elevation={0}>
         <Toolbar variant="dense" sx={{ position: 'relative', py: 0.5 }}>
           <Button
@@ -137,12 +137,11 @@ export default function ClockInOut({ onBack, onClockedIn }) {
                       alignItems: 'center',
                       gap: 1.5,
                       bgcolor: 'background.paper',
-                      border: 1,
-                      borderColor: clockedIn.has(s.id) ? 'success.main' : 'divider',
                       borderRadius: 1,
                       p: 1.5,
                       cursor: 'pointer',
-                      '&:hover': { borderColor: 'primary.main', boxShadow: 1 },
+                      boxShadow: clockedIn.has(s.id) ? 1 : undefined,
+                      '&:hover': { boxShadow: 2 },
                     }}
                   >
                     <Avatar sx={{ bgcolor: 'primary.light', color: 'primary.main', width: 38, height: 38 }}>

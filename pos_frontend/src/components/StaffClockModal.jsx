@@ -15,6 +15,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import { api } from '../api'
 import { money } from '../format'
+import { saveMyShift, clearMyShiftIf } from '../myShift'
 import KeyPad from './KeyPad'
 
 const fmtTime = (iso) =>
@@ -58,6 +59,7 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
     try {
       const closing = closingCash.trim() === '' ? null : Number(closingCash)
       const res = await api.clockOut(shift.id, { closingCash: closing })
+      clearMyShiftIf(shift.id)
       setCashResult(res.cash)
       onChanged()
     } catch (err) {
@@ -86,6 +88,7 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
       const body = staff.hasPin ? { staffId: staff.id, pin: staffPin } : { qrCode: staffQr.trim() }
       body.openingCash = openingCash.trim() === '' ? 0 : Number(openingCash)
       const shift = await api.clockIn(body)
+      saveMyShift(shift)
       onClockedIn(shift)
     } catch (err) {
       setError(err.message)
