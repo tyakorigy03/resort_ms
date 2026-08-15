@@ -9,13 +9,15 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  Menu,
+  MenuItem,
   Paper,
   TextField,
   Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CloseIcon from '@mui/icons-material/Close'
-import GroupsIcon from '@mui/icons-material/Groups'
 import PersonIcon from '@mui/icons-material/Person'
 import SearchIcon from '@mui/icons-material/Search'
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
@@ -30,6 +32,9 @@ import Receipt from './components/Receipt'
 import CustomerDialog from './components/CustomerDialog'
 import ItemDetailDialog from './components/ItemDetailDialog'
 
+// Spec 3.4 register: 3 columns (order ticket + keypad + actions | categories |
+// seats + items) over a bottom action bar (Send | Fire course | Split Check |
+// Pay). Header shows the table/customer context.
 export default function Console() {
   const { myShift, refresh } = useShell()
   const navigate = useNavigate()
@@ -42,7 +47,11 @@ export default function Console() {
   const [activeCourseId, setActiveCourseId] = useState(null)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
+  const [activeSeat, setActiveSeat] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
+  const [selectedLineId, setSelectedLineId] = useState(null)
+  const [qtyInput, setQtyInput] = useState('')
+  const [editAnchor, setEditAnchor] = useState(null)
   const [dialog, setDialog] = useState(null)
   const [receipt, setReceipt] = useState(null)
   const [error, setError] = useState(null)
@@ -72,8 +81,6 @@ export default function Console() {
     refreshOpenOrders()
   }, [])
 
-  // Initial context: seated table session (and its open order) coming from the
-  // Tables screen. Pickup/delivery orders are created inline on demand.
   useEffect(() => {
     const state = location.state
     if (!state) return
@@ -159,7 +166,12 @@ export default function Console() {
     setError(null)
     try {
       const updated = await api.addItems(order.id, [
-        { itemId: item.id, quantity: 1, courseId: activeCourseId || order.courses[0]?.id },
+        {
+          itemId: item.id,
+          quantity: 1,
+          courseId: activeCourseId || order.courses[0]?.id,
+          seatNumber: activeSeat || undefined,
+        },
       ])
       setOrder(updated)
     } catch (err) {
@@ -209,12 +221,44 @@ export default function Console() {
 
   async function handleAddCourse() {
     if (!order) return
+    setEditAnchor(null)
     setBusy(true)
     setError(null)
     try {
       const updated = await api.addCourse(order.id)
       setOrder(updated)
       setActiveCourseId(updated.id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleHold() {
+    if (!order || !activeCourse) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = activeCourse.status === 'on_hold' ? 'new' : 'on_hold'
+      const updated = await api.setCourseStatus(order.id, activeCourse.id, next)
+      setOrder(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleOrderType(type) {
+    if (!order) return
+    setEditAnchor(null)
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.updateOrder(order.id, { orderType: type })
+      setOrder(updated)
+      refreshOpenOrders()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -253,20 +297,20 @@ export default function Console() {
     }
   }
 
-  async function handleQty(item, qty) {
-    if (qty < 1) return
-    if (qty === item.quantity) return
+  async function handleQty(line, qty) {
+    if (qty < 0.5) return
+    if (qty === line.quantity) return
     setBusy(true)
     setError(null)
     try {
-      // Backend has no quantity-edit endpoint, so edit in place by removing the
-      // line and re-adding it at the new quantity (same course + seat).
-      await api.removeItem(order.id, item.id)
+      await api.removeItem(order.id, line.id)
       const updated = await api.addItems(order.id, [
-        { itemId: item.itemId, quantity: qty, courseId: item.courseId, seatNumber: item.seatNumber },
+        { itemId: line.itemId, quantity: qty, courseId: line.courseId, seatNumber: line.seatNumber },
       ])
       setOrder(updated)
       setDetailItem(null)
+      setSelectedLineId(null)
+      setQtyInput('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -340,6 +384,31 @@ export default function Console() {
     refreshOpenOrders()
   }
 
+  // Keypad (spec: C . <-- / 7 8 9 / 4 5 6 / 1 2 3 / 00 0 x) edits the quantity
+  // of the selected order line; 'x' applies it.
+  function onKeypad(key) {
+    if (key === 'clear') return setQtyInput('')
+    if (key === 'back') return setQtyInput((q) => q.slice(0, -1))
+    if (key === 'x') return applyQty()
+    setQtyInput((q) => {
+      if (q.includes('.') && key === '.') return q
+      const next = q + key
+      if (next.length > 4) return q
+      const [int, dec] = next.split('.')
+      if (dec && dec.length > 2) return q
+      if (int && int.length > 2) return q
+      return next
+    })
+  }
+
+  function applyQty() {
+    const line = selectedLineId ? findLine(order, selectedLineId) : null
+    if (!line) return
+    const qty = parseFloat(qtyInput)
+    if (!qty || Number.isNaN(qty)) return
+    handleQty(line, qty)
+  }
+
   if (loading) {
     return (
       <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
@@ -359,16 +428,10 @@ export default function Console() {
           onClick={() => switchOrder(o.id)}
         />
       ))}
-      <Chip
-        icon={<AddIcon />}
-        label="New"
-        variant="outlined"
-        onClick={openEmptyRegister}
-      />
+      <Chip icon={<AddIcon />} label="New" variant="outlined" onClick={openEmptyRegister} />
     </Box>
   )
 
-  // Empty register: nothing selected yet.
   if (!order) {
     return (
       <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1.5 }}>
@@ -396,11 +459,7 @@ export default function Console() {
               Seat a table to start a dine-in order, or start a takeaway directly.
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Button
-                variant="contained"
-                startIcon={<TableRestaurantIcon />}
-                onClick={() => navigate('/tables')}
-              >
+              <Button variant="contained" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
                 Seat a table
               </Button>
               <Button variant="outlined" onClick={startTakeaway} disabled={busy}>
@@ -414,8 +473,19 @@ export default function Console() {
     )
   }
 
+  const headerTitle = order.customerName
+    ? order.customerName
+    : order.tableLabel
+      ? `Table ${order.tableLabel}`
+      : order.collectionCode
+        ? `Code ${order.collectionCode}`
+        : order.orderType
+
+  const maxSeat = order.covers || 8
+  const seatCount = Math.max(maxSeat, 1)
+
   return (
-    <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1.5 }}>
+    <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1 }}>
       {error && (
         <Alert
           severity="error"
@@ -430,59 +500,167 @@ export default function Console() {
         </Alert>
       )}
 
-      {/* Order tabs */}
       {tabsBar}
 
-      <Paper variant="outlined" sx={{ p: 1.25, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <TableRestaurantIcon color="primary" />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-            {order.tableLabel ? `Table ${order.tableLabel}` : order.collectionCode ? `Code ${order.collectionCode}` : order.orderType}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3 }}>
-            {order.orderNumber} · {order.status}
-          </Typography>
-        </Box>
+      {/* Header (spec 3.4): table / customer context */}
+      <Paper variant="outlined" sx={{ px: 1.25, py: 0.75, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <IconButton size="small" onClick={() => navigate('/tables')}>
+          <ArrowBackIcon fontSize="small" />
+        </IconButton>
+        <Typography variant="h6" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>
+          {headerTitle}
+        </Typography>
         <Box sx={{ flexGrow: 1 }} />
-        {order.covers && (
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
-              Covers
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-              {order.covers}
-            </Typography>
-          </Box>
-        )}
-        {order.staffName && (
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
-              Served by
-            </Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-              {order.staffName}
-            </Typography>
-          </Box>
-        )}
-        {order.customerName && (
-          <Chip icon={<PersonIcon />} label={order.customerName} color="success" variant="outlined" size="small" />
-        )}
+        {order.covers ? (
+          <Chip size="small" label={`${order.covers} covers`} />
+        ) : null}
+        <Typography variant="caption" color="text.secondary">
+          {order.orderNumber}
+        </Typography>
+        {order.customerName && <Chip icon={<PersonIcon />} label={order.customerName} color="success" variant="outlined" size="small" />}
       </Paper>
 
-      <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1.5 }}>
-        {/* Left: course tabs + item grid + current course lines */}
-        <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', overflowX: 'auto' }}>
+      <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1 }}>
+        {/* Left: ticket + keypad + actions */}
+        <Paper variant="outlined" sx={{ width: 320, minWidth: 320, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', px: 1, pt: 1, overflowX: 'auto', flexShrink: 0 }}>
             {order.courses.map((c) => (
               <Chip
                 key={c.id}
+                size="small"
                 label={c.firedAt ? `${c.name} ✓` : c.name}
                 color={activeCourseId === c.id ? 'fire' : 'default'}
                 variant={activeCourseId === c.id ? 'filled' : 'outlined'}
                 onClick={() => setActiveCourseId(c.id)}
               />
             ))}
-            <Chip icon={<AddIcon />} label="Add a course" variant="outlined" onClick={handleAddCourse} disabled={busy} />
+            <Chip size="small" icon={<AddIcon />} label="+" variant="outlined" onClick={handleAddCourse} disabled={busy} />
+          </Box>
+
+          <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', px: 1, py: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', px: 0.5, pt: 0.5 }}>
+              {activeCourse?.name || 'Items'} {activeCourse?.firedAt ? '· sent to kitchen' : ''}
+              {activeCourse?.status === 'on_hold' ? ' · on hold' : ''}
+            </Typography>
+            {(activeCourse?.items || []).map((line) => (
+              <OrderLine
+                key={line.id}
+                line={line}
+                selected={line.id === selectedLineId}
+                onClick={() => {
+                  setDetailItem(line)
+                  setSelectedLineId(line.id)
+                  setQtyInput('')
+                }}
+              />
+            ))}
+            {unassignedItems.length > 0 && (
+              <>
+                <Typography variant="caption" sx={{ fontWeight: 800, display: 'block', px: 0.5, pt: 1 }}>
+                  Before first course
+                </Typography>
+                {unassignedItems.map((line) => (
+                  <OrderLine
+                    key={line.id}
+                    line={line}
+                    selected={line.id === selectedLineId}
+                    onClick={() => {
+                      setDetailItem(line)
+                      setSelectedLineId(line.id)
+                      setQtyInput('')
+                    }}
+                  />
+                ))}
+              </>
+            )}
+            {activeCourse?.items?.length === 0 && unassignedItems.length === 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+                No items in this course yet.
+              </Typography>
+            )}
+
+            <Divider sx={{ my: 1 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, mb: 0.5 }}>
+              <Typography variant="body2">Subtotal</Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800 }}>{money(subtotal)}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, mb: 0.5 }}>
+              <Typography variant="body1">Total</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 800 }}>{money(subtotal)}</Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+              {lineCount} items
+            </Typography>
+          </Box>
+
+          <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Keypad onKey={onKeypad} disabled={busy} />
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75 }}>
+              <Button size="small" variant="outlined" color="inherit" sx={{ textTransform: 'none' }} onClick={(e) => setEditAnchor(e.currentTarget)}>
+                Edit order
+              </Button>
+              <Button size="small" variant="outlined" color="inherit" sx={{ textTransform: 'none' }} disabled={busy || !activeCourse} onClick={handleHold}>
+                {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
+              </Button>
+              <Button size="small" variant="outlined" color="inherit" sx={{ textTransform: 'none' }} startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
+                Tables
+              </Button>
+              <Button size="small" variant="outlined" color="inherit" sx={{ textTransform: 'none' }} disabled={busy} onClick={() => setDialog('checkout')}>
+                Credit card
+              </Button>
+            </Box>
+            <Menu anchorEl={editAnchor} open={Boolean(editAnchor)} onClose={() => setEditAnchor(null)}>
+              <MenuItem onClick={handleAddCourse}>Add a course</MenuItem>
+              <MenuItem onClick={() => { setEditAnchor(null); setDialog('customer') }}>Assign customer</MenuItem>
+              <Divider />
+              {['dine_in', 'pickup', 'delivery'].map((type) => (
+                <MenuItem key={type} selected={order.orderType === type} onClick={() => handleOrderType(type)}>
+                  {type === 'dine_in' ? 'Dine-in' : type === 'pickup' ? 'Pickup' : 'Delivery'}
+                </MenuItem>
+              ))}
+            </Menu>
+          </Box>
+        </Paper>
+
+        {/* Middle: categories */}
+        <Paper variant="outlined" sx={{ width: 230, minWidth: 230, p: 1, overflowY: 'auto' }}>
+          <Typography variant="caption" sx={{ fontWeight: 800, px: 0.5 }}>Categories</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75, mt: 0.5 }}>
+            {categories.map((c) => (
+              <Button
+                key={c}
+                size="small"
+                variant={category === c ? 'contained' : 'outlined'}
+                color={category === c ? 'primary' : 'inherit'}
+                onClick={() => setCategory(c)}
+                sx={{ textTransform: 'capitalize', fontSize: 12, minHeight: 44, px: 0.5 }}
+              >
+                {c === 'all' ? 'All' : c}
+              </Button>
+            ))}
+          </Box>
+        </Paper>
+
+        {/* Right: seats + search + items */}
+        <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, overflowX: 'auto', pb: 0.25 }}>
+            <Chip
+              label="All seats"
+              size="small"
+              color={activeSeat === null ? 'primary' : 'default'}
+              variant={activeSeat === null ? 'filled' : 'outlined'}
+              onClick={() => setActiveSeat(null)}
+            />
+            {Array.from({ length: seatCount }, (_, i) => i + 1).map((n) => (
+              <Chip
+                key={n}
+                label={`Seat ${n}`}
+                size="small"
+                color={activeSeat === n ? 'primary' : 'default'}
+                variant={activeSeat === n ? 'filled' : 'outlined'}
+                onClick={() => setActiveSeat(n)}
+              />
+            ))}
           </Box>
 
           <TextField
@@ -501,19 +679,6 @@ export default function Console() {
               },
             }}
           />
-          <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto' }}>
-            {categories.map((c) => (
-              <Chip
-                key={c}
-                label={c}
-                color={category === c ? 'primary' : 'default'}
-                variant={category === c ? 'filled' : 'outlined'}
-                onClick={() => setCategory(c)}
-                size="small"
-                sx={{ textTransform: 'capitalize', flexShrink: 0 }}
-              />
-            ))}
-          </Box>
 
           <Box
             sx={{
@@ -521,7 +686,7 @@ export default function Console() {
               minHeight: 140,
               overflowY: 'auto',
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
               alignContent: 'start',
               gap: 1,
             }}
@@ -559,111 +724,49 @@ export default function Console() {
               </Typography>
             )}
           </Box>
-
-          <Paper variant="outlined" sx={{ minHeight: 0, maxHeight: 220, overflowY: 'auto' }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800, p: 1, pb: 0.5 }}>
-              {activeCourse?.name || 'Items'} {activeCourse?.firedAt ? '· sent to kitchen' : ''}
-            </Typography>
-            {(activeCourse?.items || []).map((line) => (
-              <OrderLine key={line.id} line={line} onClick={() => setDetailItem(line)} />
-            ))}
-            {unassignedItems.length > 0 && (
-              <>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, p: 1, pb: 0.5 }}>
-                  Before first course
-                </Typography>
-                {unassignedItems.map((line) => (
-                  <OrderLine key={line.id} line={line} onClick={() => setDetailItem(line)} />
-                ))}
-              </>
-            )}
-            {activeCourse?.items?.length === 0 && unassignedItems.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ p: 1, pt: 0.5 }}>
-                No items in this course yet.
-              </Typography>
-            )}
-          </Paper>
         </Box>
+      </Box>
 
-        {/* Right: course actions + order actions + pay */}
-        <Paper variant="outlined" sx={{ width: 330, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-              {activeCourse?.name || 'Order'}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {lineCount} items
-            </Typography>
-          </Box>
-
-          <Box sx={{ p: 1.5, overflowY: 'auto', flexGrow: 1, minHeight: 0 }}>
-            <Button
-              fullWidth
-              size="large"
-              color="fire"
-              variant="contained"
-              disabled={busy || !activeCourse || activeCourse.firedAt || activeCourse.items.length === 0}
-              onClick={handleFireCourse}
-              startIcon={<LocalFireDepartmentIcon />}
-              sx={{ mb: 1.5, fontSize: 16, py: 1.5 }}
-            >
-              {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
-            </Button>
-
-            <Button
-              fullWidth
-              variant="outlined"
-              color="inherit"
-              startIcon={<CallSplitIcon />}
-              disabled={busy}
-              onClick={handleSplit}
-              sx={{ mb: 1.5, textTransform: 'none' }}
-            >
-              Split Check
-            </Button>
-
-            <Button
-              fullWidth
-              variant="outlined"
-              color="inherit"
-              startIcon={<GroupsIcon />}
-              disabled={busy}
-              onClick={() => setDialog('customer')}
-              sx={{ mb: 1.5, textTransform: 'none' }}
-            >
-              Assign customer
-            </Button>
-
-            <Divider sx={{ my: 1.5 }} />
-
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body1">Subtotal</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 800 }}>
-                {money(subtotal)}
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-              <Typography variant="body1">Total</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 800 }}>
-                {money(subtotal)}
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ p: 1.5, borderTop: 1, borderColor: 'divider' }}>
-            <Button
-              fullWidth
-              size="large"
-              color="success"
-              variant="contained"
-              disabled={busy}
-              onClick={() => setDialog('checkout')}
-              sx={{ fontSize: 17, py: 1.5 }}
-            >
-              Pay - $${money(subtotal)}
-            </Button>
-          </Box>
-        </Paper>
+      {/* Bottom action bar (spec 3.4) */}
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <Button
+          variant="contained"
+          color="inherit"
+          disabled={busy || !selectedLineId}
+          onClick={applyQty}
+          sx={{ minWidth: 150, fontSize: 15, fontWeight: 700, textTransform: 'none' }}
+        >
+          Send
+        </Button>
+        <Button
+          variant="contained"
+          color="fire"
+          disabled={busy || !activeCourse || activeCourse.firedAt || activeCourse.items.length === 0}
+          onClick={handleFireCourse}
+          startIcon={<LocalFireDepartmentIcon />}
+          sx={{ minWidth: 160, fontSize: 15, fontWeight: 700, textTransform: 'none' }}
+        >
+          {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
+        </Button>
+        <Button
+          variant="contained"
+          color="inherit"
+          disabled={busy}
+          onClick={handleSplit}
+          startIcon={<CallSplitIcon />}
+          sx={{ minWidth: 160, fontSize: 15, fontWeight: 700, textTransform: 'none' }}
+        >
+          Split Check
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          disabled={busy}
+          onClick={() => setDialog('checkout')}
+          sx={{ flexGrow: 1, fontSize: 16, fontWeight: 800, textTransform: 'none' }}
+        >
+          Pay - ${money(subtotal)}
+        </Button>
       </Box>
 
       <CheckoutDialog
@@ -691,7 +794,38 @@ export default function Console() {
   )
 }
 
-function OrderLine({ line, onClick }) {
+// Spec 3.4 keypad: C . <-- / 7 8 9 / 4 5 6 / 1 2 3 / 00 0 x
+function Keypad({ onKey, disabled }) {
+  const rows = [
+    ['C', '.', 'back'],
+    ['7', '8', '9'],
+    ['4', '5', '6'],
+    ['1', '2', '3'],
+    ['00', '0', 'x'],
+  ]
+  return (
+    <Box>
+      {rows.map((row, i) => (
+        <Box key={i} sx={{ display: 'flex', gap: 0.5, mb: 0.5 }}>
+          {row.map((key) => (
+            <Button
+              key={key}
+              fullWidth
+              variant="outlined"
+              disabled={disabled}
+              onClick={() => onKey(key === 'back' ? 'back' : key)}
+              sx={{ height: 38, minWidth: 0, fontSize: 14, fontWeight: 700, p: 0 }}
+            >
+              {key === 'back' ? '⌫' : key}
+            </Button>
+          ))}
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
+function OrderLine({ line, onClick, selected }) {
   const cancelled = line.kdsStatus === 'cancelled'
   return (
     <Box
@@ -701,12 +835,14 @@ function OrderLine({ line, onClick }) {
         gridTemplateColumns: '1fr auto auto',
         gap: 1,
         alignItems: 'center',
-        px: 1.25,
-        py: 0.75,
+        px: 1,
+        py: 0.5,
+        borderRadius: 1,
         borderBottom: '1px dashed',
         borderColor: 'divider',
+        bgcolor: selected ? 'primary.light' : 'transparent',
         cursor: 'pointer',
-        '&:hover': { bgcolor: 'action.hover' },
+        '&:hover': { bgcolor: selected ? 'primary.light' : 'action.hover' },
       }}
     >
       <Box sx={{ minWidth: 0 }}>

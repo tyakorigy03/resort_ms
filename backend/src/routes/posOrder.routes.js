@@ -149,6 +149,17 @@ router.post('/:id/courses/:courseId/fire', verifyDevice, async (req, res, next) 
   }
 })
 
+// Set a course's status (e.g. on_hold from the register).
+router.patch('/:id/courses/:courseId/status', verifyDevice, async (req, res, next) => {
+  try {
+    const order = await loadOrder(req.params.id, req.device.outletId)
+    if (!order) return res.status(404).json({ message: 'Order not found' })
+    res.json(await orderCourseModel.setStatus(order.id, req.params.courseId, req.body.status))
+  } catch (error) {
+    next(error)
+  }
+})
+
 // Split the open order into one order per distinct seat.
 router.post('/:id/split', verifyDevice, async (req, res, next) => {
   try {

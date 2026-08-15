@@ -103,4 +103,17 @@ async function fireCourse(orderId, courseId) {
   return posOrderModel.findById(orderId)
 }
 
-module.exports = { listByOrder, addCourse, fireCourse }
+// Set a course's own status (new / preparing / ready / completed / on_hold /
+// cancelled). Used by the register's "On hold" action; does not touch fired_at.
+async function setStatus(orderId, courseId, status) {
+  const allowed = ['new', 'preparing', 'ready', 'completed', 'on_hold', 'cancelled']
+  if (!allowed.includes(status)) throw httpError('Invalid course status', 400)
+  const [result] = await pool.query(
+    'UPDATE order_courses SET status = ? WHERE id = ? AND order_id = ?',
+    [status, courseId, orderId],
+  )
+  if (result.affectedRows === 0) throw httpError('Course not found', 404)
+  return posOrderModel.findById(orderId)
+}
+
+module.exports = { listByOrder, addCourse, fireCourse, setStatus }

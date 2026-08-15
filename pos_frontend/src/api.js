@@ -89,6 +89,7 @@ export const api = {
   moveItem: (id, itemId, body) => request(`/api/pos-orders/${id}/items/${itemId}/move`, { method: 'PATCH', body }),
   addCourse: (id) => request(`/api/pos-orders/${id}/courses`, { method: 'POST', body: {} }),
   fireCourse: (id, courseId) => request(`/api/pos-orders/${id}/courses/${courseId}/fire`, { method: 'POST', body: {} }),
+  setCourseStatus: (id, courseId, status) => request(`/api/pos-orders/${id}/courses/${courseId}/status`, { method: 'PATCH', body: { status } }),
   splitCheck: (id) => request(`/api/pos-orders/${id}/split`, { method: 'POST', body: {} }),
   checkout: (id, body) => request(`/api/pos-orders/${id}/checkout`, { method: 'POST', body }),
 
