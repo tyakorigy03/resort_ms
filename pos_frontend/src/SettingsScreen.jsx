@@ -297,10 +297,10 @@ function CashDrawers({ device, drawer, busy, openDrawer, drawerMsg, onCloseMsg }
         <Divider sx={{ my: 1 }} />
         {drawer?.hasCountToday ? (
           <>
-            <Row label="Count date" value={drawer.countDate} />
-            <Row label="Opening count" value={money(drawer.openingCount)} />
-            <Row label="Counted by" value={drawer.staffName} />
-            <Row label="Confirmed at" value={fmt(drawer.confirmedAt)} />
+            <Row label="Count date" value={drawer.count?.countDate} />
+            <Row label="Opening count" value={money(drawer.count?.openingCount)} />
+            <Row label="Counted by" value={drawer.count?.staffName} />
+            <Row label="Confirmed at" value={fmt(drawer.count?.confirmedAt)} />
           </>
         ) : (
           <Typography variant="body2" color="text.secondary">
