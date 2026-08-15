@@ -19,6 +19,7 @@ function mapOrder(row) {
     tableLabel: row.table_label || null,
     floorPlanId: row.floor_plan_id || null,
     floorPlanName: row.floor_plan_name || null,
+    courseName: row.course_name || null,
     status: row.status,
     orderType: row.order_type,
     collectionCode: row.collection_code || null,
@@ -46,7 +47,8 @@ const BASE_SELECT = `
          o.change_due, o.created_at, o.updated_at, o.completed_at,
          CONCAT_WS(' ', s.first_name, s.last_name) AS staff_name,
          CONCAT_WS(' ', c.first_name, c.last_name) AS customer_name,
-         t.label AS table_label, fp.id AS floor_plan_id, fp.name AS floor_plan_name
+         t.label AS table_label, fp.id AS floor_plan_id, fp.name AS floor_plan_name,
+         (SELECT oc.name FROM order_courses oc WHERE oc.order_id = o.id ORDER BY oc.course_number ASC LIMIT 1) AS course_name
   FROM pos_orders o
   LEFT JOIN staff s ON s.id = o.staff_id
   LEFT JOIN customers c ON c.id = o.customer_id

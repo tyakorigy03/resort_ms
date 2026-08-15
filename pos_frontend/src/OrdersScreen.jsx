@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Alert,
@@ -8,10 +8,18 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
+  Popover,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import FilterListIcon from '@mui/icons-material/FilterList'
 import SearchIcon from '@mui/icons-material/Search'
 import { api } from './api'
 import { money } from './format'
@@ -23,12 +31,24 @@ const STATUS_COLORS = {
   void: 'error',
 }
 
+const TYPE_LABELS = {
+  dine_in: 'Dine-in',
+  pickup: 'Pickup',
+  delivery: 'Delivery',
+}
+
+// Spec 3.5: order management screen with Dine-in/Pickup/Delivery tabs (with
+// counts), search, a Filters popover, and a table of Order | Floor | User |
+// Covers | Created | Last edit | Course | Total | Payment rows with an Open
+// action for open orders.
 export default function OrdersScreen() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
+  const [tab, setTab] = useState('all')
+  const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [date, setDate] = useState('today')
-  const [search, setSearch] = useState('')
+  const [filterAnchor, setFilterAnchor] = useState(null)
   const [receipt, setReceipt] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -47,6 +67,17 @@ export default function OrdersScreen() {
       .finally(() => setLoading(false))
   }, [status, date, search])
 
+  const counts = useMemo(() => {
+    const c = { all: orders.length, dine_in: 0, pickup: 0, delivery: 0 }
+    for (const o of orders) c[o.orderType] = (c[o.orderType] || 0) + 1
+    return c
+  }, [orders])
+
+  const visible = useMemo(
+    () => orders.filter((o) => tab === 'all' || o.orderType === tab),
+    [orders, tab],
+  )
+
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 2, gap: 1.5 }}>
       {error && (
@@ -63,27 +94,70 @@ export default function OrdersScreen() {
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-        {['all', 'open', 'paid', 'void'].map((s) => (
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+        {[
+          ['all', `All (${counts.all})`],
+          ['dine_in', `Dine-in (${counts.dine_in})`],
+          ['pickup', `Pickup (${counts.pickup})`],
+          ['delivery', `Delivery (${counts.delivery})`],
+        ].map(([value, label]) => (
           <Chip
-            key={s}
-            label={s}
-            color={status === s ? 'primary' : 'default'}
-            variant={status === s ? 'filled' : 'outlined'}
-            onClick={() => setStatus(s)}
-            sx={{ textTransform: 'capitalize' }}
+            key={value}
+            label={label}
+            color={tab === value ? 'primary' : 'default'}
+            variant={tab === value ? 'filled' : 'outlined'}
+            onClick={() => setTab(value)}
           />
         ))}
         <Box sx={{ flexGrow: 1 }} />
-        {['today', 'all'].map((d) => (
-          <Chip
-            key={d}
-            label={d === 'today' ? 'Today' : 'All dates'}
-            color={date === d ? 'primary' : 'default'}
-            variant={date === d ? 'filled' : 'outlined'}
-            onClick={() => setDate(d)}
-          />
-        ))}
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<FilterListIcon />}
+          onClick={(e) => setFilterAnchor(e.currentTarget)}
+        >
+          Filters
+        </Button>
+        <Popover
+          open={Boolean(filterAnchor)}
+          anchorEl={filterAnchor}
+          onClose={() => setFilterAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 220 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Status</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+              {['all', 'open', 'paid', 'void'].map((s) => (
+                <Chip
+                  key={s}
+                  size="small"
+                  label={s}
+                  color={status === s ? 'primary' : 'default'}
+                  variant={status === s ? 'filled' : 'outlined'}
+                  onClick={() => setStatus(s)}
+                  sx={{ textTransform: 'capitalize' }}
+                />
+              ))}
+            </Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 1 }}>Date</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Chip
+                size="small"
+                label="Today"
+                color={date === 'today' ? 'primary' : 'default'}
+                variant={date === 'today' ? 'filled' : 'outlined'}
+                onClick={() => setDate('today')}
+              />
+              <Chip
+                size="small"
+                label="All dates"
+                color={date === 'all' ? 'primary' : 'default'}
+                variant={date === 'all' ? 'filled' : 'outlined'}
+                onClick={() => setDate('all')}
+              />
+            </Box>
+          </Box>
+        </Popover>
       </Box>
 
       <TextField
@@ -103,77 +177,108 @@ export default function OrdersScreen() {
         }}
       />
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+      <TableContainer sx={{ flexGrow: 1, minHeight: 0 }}>
         {loading ? (
-          <Box sx={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+          <Box sx={{ display: 'grid', placeItems: 'center', height: '100%', py: 6 }}>
             <CircularProgress />
           </Box>
-        ) : orders.length === 0 ? (
+        ) : visible.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
             No orders match.
           </Typography>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 1 }}>
-            {orders.map((o) => (
-              <Button
-                key={o.id}
-                variant="outlined"
-                color="inherit"
-                onClick={() => {
-                  if (o.status === 'open') navigate('/register', { state: { orderId: o.id } })
-                  else setReceipt(o)
-                }}
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'stretch',
-                  p: 1.5,
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                  textTransform: 'none',
-                  '&:hover': { borderColor: 'primary.main' },
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                    {o.orderNumber}
-                  </Typography>
-                  <Chip
-                    label={o.status}
-                    size="small"
-                    color={STATUS_COLORS[o.status] || 'default'}
-                    sx={{ textTransform: 'capitalize' }}
-                  />
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
-                  {o.tableLabel ? `Table ${o.tableLabel}` : o.collectionCode ? `Code ${o.collectionCode}` : o.orderType}
-                  {o.covers ? ` · ${o.covers} covers` : ''}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
-                  {fmt(o.createdAt)}
-                  {o.staffName ? ` · ${o.staffName}` : ''}
-                  {o.customerName ? ` · ${o.customerName}` : ''}
-                </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {o.itemsTotal || ''}
-                  </Typography>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                    {money(o.total)}
-                  </Typography>
-                </Box>
-              </Button>
-            ))}
-          </Box>
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <Cell>Order</Cell>
+                <Cell>Floor</Cell>
+                <Cell>User</Cell>
+                <Cell>Covers</Cell>
+                <Cell>Created</Cell>
+                <Cell>Last edit</Cell>
+                <Cell>Course</Cell>
+                <Cell align="right">Total</Cell>
+                <Cell>Payment</Cell>
+                <Cell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {visible.map((o) => (
+                <TableRow
+                  key={o.id}
+                  hover
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    if (o.status === 'open') navigate('/register', { state: { orderId: o.id } })
+                    else setReceipt(o)
+                  }}
+                >
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{o.orderNumber}</Typography>
+                      <Chip
+                        label={o.status}
+                        size="small"
+                        color={STATUS_COLORS[o.status] || 'default'}
+                        sx={{ textTransform: 'capitalize', fontSize: 10, height: 18 }}
+                      />
+                    </Box>
+                  </TableCell>
+                  <TableCell>{o.tableLabel ? `Table ${o.tableLabel}` : (o.floorPlanName || '—')}</TableCell>
+                  <TableCell>{o.staffName || '—'}</TableCell>
+                  <TableCell>{o.covers ?? '—'}</TableCell>
+                  <TableCell>{time(o.createdAt)}</TableCell>
+                  <TableCell>{time(o.updatedAt)}</TableCell>
+                  <TableCell>{o.courseName || '—'}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700 }}>{money(o.total)}</TableCell>
+                  <TableCell sx={{ textTransform: 'capitalize' }}>{o.paymentMethod || '—'}</TableCell>
+                  <TableCell>
+                    {o.status === 'open' ? (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate('/register', { state: { orderId: o.id } })
+                        }}
+                      >
+                        Open
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setReceipt(o)
+                        }}
+                      >
+                        Receipt
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
-      </Box>
+      </TableContainer>
 
       <Receipt order={receipt} onClose={() => setReceipt(null)} />
     </Box>
   )
 }
 
-function fmt(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+function Cell({ align, children }) {
+  return (
+    <TableCell align={align} sx={{ fontWeight: 800, color: 'text.secondary', fontSize: 12, whiteSpace: 'nowrap' }}>
+      {children}
+    </TableCell>
+  )
+}
+
+function time(value) {
+  if (!value) return '—'
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
