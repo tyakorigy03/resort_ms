@@ -57,38 +57,40 @@ export default function CashDrawerGate({ device, shift, onConfirm, onCancel }) {
         </Typography>
       </Box>
 
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
-          Cash
-        </Typography>
-        <Typography
-          variant="h1"
-          sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', mb: 1, letterSpacing: 1 }}
-        >
-          ${displayed}
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Confirm cash amount.
-        </Typography>
+      <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ m: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', px: 4, py: 2, width: '100%' }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
+            Cash
+          </Typography>
+          <Typography
+            variant="h1"
+            sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', mb: 1, letterSpacing: 1 }}
+          >
+            ${displayed}
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Confirm cash amount.
+          </Typography>
 
-        {shift && (
-          <Chip
-            icon={<CheckCircleIcon fontSize="small" />}
-            label={`Shift started at ${fmtTime(shift.clockedInAt)}`}
-            color="success"
-            variant="filled"
-            sx={{ fontWeight: 600, mb: 3 }}
-          />
-        )}
+          {shift && (
+            <Chip
+              icon={<CheckCircleIcon fontSize="small" />}
+              label={`Shift started at ${fmtTime(shift.clockedInAt)}`}
+              color="success"
+              variant="filled"
+              sx={{ fontWeight: 600, mb: 3 }}
+            />
+          )}
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2, fontSize: '0.85rem' }}>
-            {error}
-          </Alert>
-        )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2, fontSize: '0.85rem' }}>
+              {error}
+            </Alert>
+          )}
 
-        <Box sx={{ width: 300 }}>
-          <KeyGrid onKey={onKey} disabled={busy} />
+          <Box sx={{ width: '100%', maxWidth: 300 }}>
+            <KeyGrid onKey={onKey} disabled={busy} />
+          </Box>
         </Box>
       </Box>
 

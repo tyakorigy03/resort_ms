@@ -21,7 +21,7 @@ import DeviceHubIcon from '@mui/icons-material/DeviceHub'
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings'
 import TvIcon from '@mui/icons-material/Tv'
 import SupportAgentIcon from '@mui/icons-material/SupportAgent'
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
+import HelpOutlineOutlinedIcon from '@mui/icons-material/HelpOutlineOutlined'
 import NewReleasesIcon from '@mui/icons-material/NewReleases'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import StorefrontIcon from '@mui/icons-material/Storefront'
@@ -43,7 +43,7 @@ const SIDEBAR = [
   { id: 'display', label: 'Display Settings', icon: DisplaySettingsIcon },
   { id: 'kds', label: 'Kitchen Display System', icon: TvIcon },
   { id: 'support', label: 'Support', icon: SupportAgentIcon },
-  { id: 'help', label: 'Help Center', icon: HelpOutlineIcon },
+  { id: 'help', label: 'Help Center', icon: HelpOutlineOutlinedIcon },
   { id: 'whatsnew', label: "What's New", icon: NewReleasesIcon },
 ]
 
