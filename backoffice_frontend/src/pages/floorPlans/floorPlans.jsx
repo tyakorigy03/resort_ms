@@ -9,15 +9,19 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputLabel,
   MenuItem,
   Select,
+  Switch,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
@@ -36,6 +40,7 @@ import {
   listTables,
   updateFloorPlan,
   updateTable,
+  uploadFloorPlanImage,
 } from '../../api/floorPlans'
 import { listOutlets } from '../../api/outlets'
 import { useToast } from '../../components/Toast'
@@ -291,14 +296,203 @@ function fallbackPos(index) {
   return { x: 60 + (index % perRow) * 150, y: 60 + Math.floor(index / perRow) * 130 }
 }
 
+function BulkAddDialog({ planId, onSave, onClose }) {
+  const [form, setForm] = useState({ count: 4, prefix: 'T', start: 1, seats: 4, shape: 'square' })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    const count = Math.min(Math.max(Number(form.count) || 0, 1), 50)
+    if (!form.prefix.trim()) {
+      setError('Label prefix is required')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const perRow = 6
+      for (let i = 0; i < count; i += 1) {
+        const row = Math.floor(i / perRow)
+        const col = i % perRow
+        await createTable({
+          floorPlanId: planId,
+          label: `${form.prefix.trim()}${Number(form.start) + i}`,
+          seats: Number(form.seats) || 4,
+          shape: form.shape,
+          posX: 60 + col * 150,
+          posY: 60 + row * 130,
+        })
+      }
+      onSave()
+    } catch (err) {
+      setError(err.message || 'Failed to add tables')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onClose={onClose} slotProps={{ paper: { sx: { borderRadius: 2, width: 340, maxWidth: 340 } } }}>
+      <DialogTitle sx={{ py: 1, px: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+            Add tables
+          </Typography>
+          <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary', p: 0.25 }}>
+            <CloseIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+      <DialogContent sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <TextField
+          autoFocus
+          variant="standard"
+          size="small"
+          label="How many"
+          type="number"
+          value={form.count}
+          onChange={(e) => setForm((f) => ({ ...f, count: e.target.value }))}
+          sx={inputSx}
+        />
+        <TextField
+          variant="standard"
+          size="small"
+          label="Label prefix"
+          value={form.prefix}
+          onChange={(e) => setForm((f) => ({ ...f, prefix: e.target.value }))}
+          sx={inputSx}
+        />
+        <TextField
+          variant="standard"
+          size="small"
+          label="Start number"
+          type="number"
+          value={form.start}
+          onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))}
+          sx={inputSx}
+        />
+        <TextField
+          variant="standard"
+          size="small"
+          label="Seats each"
+          type="number"
+          value={form.seats}
+          onChange={(e) => setForm((f) => ({ ...f, seats: e.target.value }))}
+          sx={inputSx}
+        />
+        <FormControl variant="standard" size="small" sx={inputSx}>
+          <InputLabel sx={{ fontSize: '0.75rem' }}>Shape</InputLabel>
+          <Select
+            label="Shape"
+            value={form.shape}
+            onChange={(e) => setForm((f) => ({ ...f, shape: e.target.value }))}
+            sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+          >
+            <MenuItem value="square">Square</MenuItem>
+            <MenuItem value="rectangle">Rectangle</MenuItem>
+            <MenuItem value="circle">Circle</MenuItem>
+          </Select>
+        </FormControl>
+        {error && (
+          <Typography variant="caption" sx={{ color: 'error.main', fontSize: '0.7rem' }}>
+            {error}
+          </Typography>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 2, py: 1.5 }}>
+        <Button size="small" sx={{ color: 'text.secondary', bgcolor: '#f3f4f6' }} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="small" variant="contained" color="primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Adding…' : 'Add'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// Spec 5: floor plan detail is tabbed — "Floor plan" (the spatial editor) and
+// "Settings" (rename, order profile, prompt-cover-count toggle, background
+// image). Order profiles have no table yet; the select exposes the default.
+function SettingsPanel({ draft, setDraft, fileRef, onUpload, onSave, saving }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, maxWidth: 420 }}>
+      <TextField
+        variant="standard"
+        size="small"
+        label="Floor name"
+        value={draft.name}
+        onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+        sx={inputSx}
+      />
+      <FormControl variant="standard" size="small" sx={inputSx}>
+        <InputLabel sx={{ fontSize: '0.75rem' }}>Order profile</InputLabel>
+        <Select
+          label="Order profile"
+          value={draft.orderProfileId}
+          onChange={(e) => setDraft((d) => ({ ...d, orderProfileId: e.target.value }))}
+          sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+        >
+          <MenuItem value="">Default profile</MenuItem>
+        </Select>
+      </FormControl>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={Boolean(draft.promptCoverCount)}
+            onChange={(e) => setDraft((d) => ({ ...d, promptCoverCount: e.target.checked }))}
+          />
+        }
+        label="Ask for the number of covers when seating a table"
+      />
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.8rem', mt: 1 }}>
+        Background image
+      </Typography>
+      {draft.backgroundImageUrl && (
+        <Box
+          component="img"
+          src={draft.backgroundImageUrl}
+          alt="Floor plan background"
+          sx={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+        />
+      )}
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        <Button size="small" variant="outlined" onClick={() => fileRef.current?.click()}>
+          {draft.backgroundImageUrl ? 'Replace image' : 'Upload image'}
+        </Button>
+        {draft.backgroundImageUrl && (
+          <Button size="small" variant="text" color="inherit" onClick={() => setDraft((d) => ({ ...d, backgroundImageUrl: '' }))}>
+            Remove
+          </Button>
+        )}
+      </Box>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onUpload} />
+      <Button size="small" variant="contained" color="primary" onClick={onSave} disabled={saving} sx={{ alignSelf: 'flex-start', mt: 1 }}>
+        {saving ? 'Saving…' : 'Save settings'}
+      </Button>
+    </Box>
+  )
+}
+
 function PlanEditor({ plan, onBack, onChanged }) {
   const showToast = useToast()
   const canvasRef = useRef(null)
   const dragRef = useRef(null)
+  const fileRef = useRef(null)
+  const [tab, setTab] = useState('plan')
+  const [draft, setDraft] = useState({
+    name: plan.name ?? '',
+    orderProfileId: plan.orderProfileId ?? '',
+    promptCoverCount: plan.promptCoverCount !== false,
+    backgroundImageUrl: plan.backgroundImageUrl || '',
+    sortOrder: plan.sortOrder ?? 0,
+  })
   const [tables, setTables] = useState([])
   const [loading, setLoading] = useState(true)
   const [editTable, setEditTable] = useState(null)
   const [confirmDeleteTable, setConfirmDeleteTable] = useState(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -411,6 +605,42 @@ function PlanEditor({ plan, onBack, onChanged }) {
     onChanged()
   }
 
+  async function handleSaveSettings() {
+    if (!draft.name.trim()) {
+      showToast('Name is required', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      await updateFloorPlan(plan.id, {
+        name: draft.name.trim(),
+        orderProfileId: draft.orderProfileId ? Number(draft.orderProfileId) : null,
+        promptCoverCount: draft.promptCoverCount,
+        backgroundImageUrl: draft.backgroundImageUrl || null,
+        sortOrder: draft.sortOrder,
+      })
+      showToast('Settings saved')
+      onChanged()
+    } catch (err) {
+      showToast(err.message || 'Failed to save settings', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUploadImage(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const res = await uploadFloorPlanImage(file)
+      setDraft((d) => ({ ...d, backgroundImageUrl: res.url }))
+      showToast('Background image uploaded')
+    } catch (err) {
+      showToast(err.message || 'Failed to upload image', 'error')
+    }
+  }
+
   return (
     <Card>
       <CardContent sx={{ p: 1.5 }}>
@@ -429,8 +659,25 @@ function PlanEditor({ plan, onBack, onChanged }) {
           <Button size="small" variant="contained" startIcon={<AddIcon fontSize="small" />} onClick={handleAddTable}>
             Add table
           </Button>
+          <Button size="small" variant="outlined" onClick={() => setBulkOpen(true)}>
+            Add many
+          </Button>
         </Box>
 
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 32, mb: 1.5 }}>
+          <Tab
+            label="Floor plan"
+            value="plan"
+            sx={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'none', minHeight: 32, py: 0 }}
+          />
+          <Tab
+            label="Settings"
+            value="settings"
+            sx={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'none', minHeight: 32, py: 0 }}
+          />
+        </Tabs>
+
+        {tab === 'plan' && (
         <Box
           ref={canvasRef}
           sx={{
@@ -488,8 +735,14 @@ function PlanEditor({ plan, onBack, onChanged }) {
             })
           )}
         </Box>
+        )}
+        {tab === 'settings' && (
+          <SettingsPanel draft={draft} setDraft={setDraft} fileRef={fileRef} onUpload={handleUploadImage} onSave={handleSaveSettings} saving={saving} />
+        )}
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-          Drag a table to position it. Click a table to edit its label, seats, shape or status.
+          {tab === 'plan'
+            ? 'Drag a table to position it. Click a table to edit its label, seats, shape or status.'
+            : 'Changes on this tab apply when you save.'}
         </Typography>
       </CardContent>
 
@@ -499,6 +752,18 @@ function PlanEditor({ plan, onBack, onChanged }) {
           onSave={handleSaveTable}
           onDelete={() => setConfirmDeleteTable(editTable)}
           onClose={() => setEditTable(null)}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkAddDialog
+          planId={plan.id}
+          onSave={() => {
+            setBulkOpen(false)
+            showToast('Tables added')
+            refresh().then(onChanged)
+          }}
+          onClose={() => setBulkOpen(false)}
         />
       )}
 
@@ -638,27 +903,23 @@ function FloorPlans() {
         >
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Outlet</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Floor name</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Tables</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Seats</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Sort order</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Covers</TableCell>
               <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6}>Loading...</TableCell>
+                <TableCell colSpan={4}>Loading...</TableCell>
               </TableRow>
             ) : (
               plans.map((plan) => (
                 <TableRow key={plan.id} hover onClick={() => setEditing(plan)} sx={{ cursor: 'pointer' }}>
                   <TableCell sx={{ fontWeight: 500 }}>{plan.name}</TableCell>
-                  <TableCell>{plan.outletName || '—'}</TableCell>
                   <TableCell>{plan.tableCount}</TableCell>
                   <TableCell>{plan.totalSeats}</TableCell>
-                  <TableCell>{plan.sortOrder}</TableCell>
                   <TableCell align="right">
                     <IconButton
                       size="small"
@@ -686,7 +947,7 @@ function FloorPlans() {
             )}
             {!loading && plans.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TableRestaurantIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
                     No floor plans yet. Create one to start arranging tables.

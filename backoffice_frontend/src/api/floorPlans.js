@@ -43,3 +43,12 @@ export function updateTable(id, data) {
 export function deleteTable(id) {
   return request(`/api/tables/${id}`, { method: 'DELETE' })
 }
+
+export function uploadFloorPlanImage(file) {
+  const body = new FormData()
+  body.append('image', file)
+  return request('/api/uploads', {
+    method: 'POST',
+    body,
+  })
+}
