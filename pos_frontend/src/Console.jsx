@@ -476,7 +476,7 @@ function Register() {
         {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
         {tabsBar}
         <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
-          <Paper variant="soft" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
+          <Paper variant="outlined" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
             <StorefrontIcon sx={{ fontSize: 56, color: 'text.secondary', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
               No order selected
@@ -518,7 +518,7 @@ function Register() {
       {tabsBar}
 
       {/* Context header: who/what this register is working on */}
-      <Paper variant="soft" sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Paper variant="outlined" sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <IconButton size="small" onClick={() => navigate('/tables')} title="Back to tables">
           <ArrowBackIcon fontSize="small" />
         </IconButton>
@@ -554,7 +554,7 @@ function Register() {
 
       <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1 }}>
         {/* Left: order ticket + keypad + actions */}
-        <Paper variant="soft" sx={{ width: 360, minWidth: 360, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ width: 360, minWidth: 360, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto' }}>
             <List disablePadding dense>
               {unassignedItems.length > 0 && (
@@ -663,7 +663,7 @@ function Register() {
         </Paper>
 
         {/* Menu: category rail + seat target + search + items */}
-        <Paper variant="soft" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
             <TextField
               size="small"
@@ -763,40 +763,40 @@ function Register() {
               )}
             </Box>
           </Box>
-        </Paper>
-      </Box>
 
-      {/* Bottom action bar */}
-      <Box sx={{ display: 'flex', gap: 1 }}>
-        <Button
-          variant="contained"
-          color="fire"
-          disabled={busy || fireDisabled}
-          onClick={handleFireCourse}
-          startIcon={<LocalFireDepartmentIcon />}
-          sx={{ minWidth: 160, fontSize: 15, fontWeight: 700 }}
-        >
-          {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
-        </Button>
-        <Button
-          variant="contained"
-          color="inherit"
-          disabled={busy}
-          onClick={handleSplit}
-          startIcon={<CallSplitIcon />}
-          sx={{ minWidth: 160, fontSize: 15, fontWeight: 700 }}
-        >
-          Split Check
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          disabled={busy}
-          onClick={() => setDialog('checkout')}
-          sx={{ flexGrow: 1, fontSize: 16, fontWeight: 800 }}
-        >
-          Pay - {money(subtotal)}
-        </Button>
+          {/* Main order-flow actions */}
+          <Box sx={{ display: 'flex', gap: 1, p: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Button
+              variant="contained"
+              color="fire"
+              disabled={busy || fireDisabled}
+              onClick={handleFireCourse}
+              startIcon={<LocalFireDepartmentIcon />}
+              sx={{ minWidth: 160, fontSize: 15, fontWeight: 700 }}
+            >
+              {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
+            </Button>
+            <Button
+              variant="contained"
+              color="inherit"
+              disabled={busy}
+              onClick={handleSplit}
+              startIcon={<CallSplitIcon />}
+              sx={{ minWidth: 160, fontSize: 15, fontWeight: 700 }}
+            >
+              Split Check
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              disabled={busy}
+              onClick={() => setDialog('checkout')}
+              sx={{ flexGrow: 1, fontSize: 16, fontWeight: 800 }}
+            >
+              Pay - {money(subtotal)}
+            </Button>
+          </Box>
+        </Paper>
       </Box>
 
       <CheckoutDialog
