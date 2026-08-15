@@ -9,7 +9,6 @@ import {
   Collapse,
   Divider,
   IconButton,
-  InputAdornment,
   List,
   ListItem,
   ListItemButton,
@@ -19,7 +18,6 @@ import {
   Menu,
   MenuItem,
   Paper,
-  TextField,
   Typography,
 } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
@@ -33,7 +31,6 @@ import ExpandMore from '@mui/icons-material/ExpandMore'
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import PersonIcon from '@mui/icons-material/Person'
-import SearchIcon from '@mui/icons-material/Search'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
 import { api } from './api'
@@ -662,26 +659,8 @@ function Register() {
           </Box>
         </Paper>
 
-        {/* Menu: category rail + seat target + search + items */}
+        {/* Menu: category rail + seat target + items */}
         <Paper variant="outlined" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="Search items…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider', overflowX: 'auto', flexShrink: 0 }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', whiteSpace: 'nowrap' }}>
               Add to
@@ -744,7 +723,6 @@ function Register() {
                     justifyContent: 'space-between',
                     minHeight: 74,
                     p: 1.25,
-                    bgcolor: 'background.paper',
                     '&:hover': { borderColor: 'primary.main' },
                   }}
                 >
