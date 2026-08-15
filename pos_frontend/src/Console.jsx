@@ -466,7 +466,7 @@ function Register() {
           onClick={() => switchOrder(o.id)}
         />
       ))}
-      <Chip icon={<AddIcon />} label="New" variant="outlined" onClick={openEmptyRegister} />
+      <Chip icon={<AddIcon />} label="New" variant="soft" onClick={openEmptyRegister} />
     </Box>
   )
 
@@ -476,7 +476,7 @@ function Register() {
         {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
         {tabsBar}
         <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
-          <Paper variant="outlined" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
+          <Paper variant="soft" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
             <StorefrontIcon sx={{ fontSize: 56, color: 'text.secondary', mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
               No order selected
@@ -488,7 +488,7 @@ function Register() {
               <Button variant="contained" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
                 Seat a table
               </Button>
-              <Button variant="outlined" onClick={startTakeaway} disabled={busy}>
+              <Button variant="soft" onClick={startTakeaway} disabled={busy}>
                 Start a takeaway
               </Button>
             </Box>
@@ -518,7 +518,7 @@ function Register() {
       {tabsBar}
 
       {/* Context header: who/what this register is working on */}
-      <Paper variant="outlined" sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Paper variant="soft" sx={{ px: 1, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <IconButton size="small" onClick={() => navigate('/tables')} title="Back to tables">
           <ArrowBackIcon fontSize="small" />
         </IconButton>
@@ -533,9 +533,9 @@ function Register() {
         <Box sx={{ flexGrow: 1 }} />
         {order.covers ? <Chip size="small" label={`${order.covers} covers`} /> : null}
         {order.customerName && (
-          <Chip size="small" icon={<PersonIcon />} label={order.customerName} color="success" variant="outlined" />
+          <Chip size="small" icon={<PersonIcon />} label={order.customerName} color="success" variant="soft" />
         )}
-        <Button size="small" color="inherit" variant="outlined" disabled={busy || !activeCourse} onClick={handleHold}>
+        <Button size="small" color="inherit" variant="soft" disabled={busy || !activeCourse} onClick={handleHold}>
           {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
         </Button>
         <IconButton size="small" onClick={(e) => setEditAnchor(e.currentTarget)} title="Order options">
@@ -554,7 +554,7 @@ function Register() {
 
       <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1 }}>
         {/* Left: order ticket + keypad + actions */}
-        <Paper variant="outlined" sx={{ width: 360, minWidth: 360, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Paper variant="soft" sx={{ width: 360, minWidth: 360, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto' }}>
             <List disablePadding dense>
               {unassignedItems.length > 0 && (
@@ -646,16 +646,16 @@ function Register() {
           <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
             <Keypad onKey={onKeypad} disabled={busy} />
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75, mt: 0.75 }}>
-              <Button size="small" variant="outlined" color="inherit" onClick={(e) => setEditAnchor(e.currentTarget)}>
+              <Button size="small" variant="soft" color="inherit" onClick={(e) => setEditAnchor(e.currentTarget)}>
                 Edit order
               </Button>
-              <Button size="small" variant="outlined" color="inherit" disabled={busy || !activeCourse} onClick={handleHold}>
+              <Button size="small" variant="soft" color="inherit" disabled={busy || !activeCourse} onClick={handleHold}>
                 {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
               </Button>
-              <Button size="small" variant="outlined" color="inherit" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
+              <Button size="small" variant="soft" color="inherit" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
                 Tables
               </Button>
-              <Button size="small" variant="outlined" color="inherit" disabled={busy} onClick={() => setDialog('checkout')}>
+              <Button size="small" variant="soft" color="inherit" disabled={busy} onClick={() => setDialog('checkout')}>
                 Credit card
               </Button>
             </Box>
@@ -663,7 +663,7 @@ function Register() {
         </Paper>
 
         {/* Menu: category rail + seat target + search + items */}
-        <Paper variant="outlined" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Paper variant="soft" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
             <TextField
               size="small"
@@ -710,7 +710,7 @@ function Register() {
                 <Button
                   key={c}
                   size="small"
-                  variant={category === c ? 'contained' : 'outlined'}
+                  variant={category === c ? 'contained' : 'soft'}
                   color={category === c ? 'primary' : 'inherit'}
                   onClick={() => setCategory(c)}
                   sx={{ justifyContent: 'flex-start', textTransform: 'capitalize', fontSize: 12, px: 1, minHeight: 34 }}
@@ -733,7 +733,7 @@ function Register() {
               {visibleItems.map((item) => (
                 <Button
                   key={item.id}
-                  variant="outlined"
+                  variant="soft"
                   color="inherit"
                   onClick={() => addItem(item)}
                   disabled={busy}
@@ -841,7 +841,7 @@ function Keypad({ onKey, disabled }) {
             <Button
               key={key}
               fullWidth
-              variant="outlined"
+              variant="soft"
               disabled={disabled}
               onClick={() => onKey(key === 'back' ? 'back' : key)}
               sx={{ height: 36, minWidth: 0, fontSize: 14, fontWeight: 700, p: 0 }}

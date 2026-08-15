@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles'
+import { createTheme, alpha } from '@mui/material/styles'
 
 // Shared design tokens (spec §5.1). POS defaults to dark, KDS to light.
 export const tokens = {
@@ -72,6 +72,40 @@ export function buildTheme(mode, opts = {}) {
         styleOverrides: {
           root: { textTransform: 'none', fontWeight: 600 },
         },
+        variants: [
+          {
+            props: { variant: 'soft' },
+            style: ({ theme }) => ({
+              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+              color: theme.palette.text.primary,
+              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.09)' },
+            }),
+          },
+          {
+            props: { variant: 'soft', color: 'primary' },
+            style: ({ theme }) => ({
+              backgroundColor: alpha(theme.palette.primary.main, 0.15),
+              color: theme.palette.primary.main,
+              '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.25) },
+            }),
+          },
+          {
+            props: { variant: 'soft', color: 'success' },
+            style: ({ theme }) => ({
+              backgroundColor: alpha(theme.palette.success.main, 0.15),
+              color: theme.palette.success.main,
+              '&:hover': { backgroundColor: alpha(theme.palette.success.main, 0.25) },
+            }),
+          },
+          {
+            props: { variant: 'soft', color: 'fire' },
+            style: ({ theme }) => ({
+              backgroundColor: alpha(theme.palette.fire.main, 0.15),
+              color: theme.palette.fire.main,
+              '&:hover': { backgroundColor: alpha(theme.palette.fire.main, 0.25) },
+            }),
+          },
+        ],
       },
       MuiChip: {
         styleOverrides: { root: { fontWeight: 600 } },
