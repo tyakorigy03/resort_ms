@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AppBar,
   Avatar,
@@ -10,6 +11,7 @@ import {
 } from '@mui/material'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import LockIcon from '@mui/icons-material/Lock'
+import OpenInFullIcon from '@mui/icons-material/OpenInFull'
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
 import SettingsIcon from '@mui/icons-material/Settings'
 import { api } from './api'
@@ -27,6 +29,7 @@ export default function KdsShell({ device, onLogout, children }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [clock, setClock] = useState(new Date())
   const { setModeTo } = useThemeMode()
+  const navigate = useNavigate()
 
   async function loadSettings() {
     try {
@@ -86,8 +89,11 @@ export default function KdsShell({ device, onLogout, children }) {
 
             <Chip icon={<AccessTimeIcon sx={{ fontSize: 16 }} />} label={clock.toLocaleTimeString()} size="small" />
 
-            <IconButton color="inherit" size="small" onClick={() => setSettingsOpen(true)} title="Display settings">
+            <IconButton color="inherit" size="small" onClick={() => setSettingsOpen(true)} title="Quick display settings">
               <SettingsIcon fontSize="small" />
+            </IconButton>
+            <IconButton color="inherit" size="small" onClick={() => navigate('/settings')} title="Full display settings">
+              <OpenInFullIcon fontSize="small" />
             </IconButton>
             <IconButton color="inherit" size="small" onClick={onLogout} title="Lock">
               <LockIcon fontSize="small" />
