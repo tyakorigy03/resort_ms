@@ -641,20 +641,22 @@ function Register() {
           </Box>
 
           <Box sx={{ p: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <Keypad onKey={onKeypad} disabled={busy} />
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75, mt: 0.75 }}>
-              <Button size="small" variant="soft" color="inherit" onClick={(e) => setEditAnchor(e.currentTarget)}>
-                Edit order
-              </Button>
-              <Button size="small" variant="soft" color="inherit" disabled={busy || !activeCourse} onClick={handleHold}>
-                {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
-              </Button>
-              <Button size="small" variant="soft" color="inherit" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
-                Tables
-              </Button>
-              <Button size="small" variant="soft" color="inherit" disabled={busy} onClick={() => setDialog('checkout')}>
-                Credit card
-              </Button>
+            <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 0.75, alignItems: 'stretch' }}>
+              <Keypad onKey={onKeypad} disabled={busy} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" onClick={(e) => setEditAnchor(e.currentTarget)}>
+                  Edit order
+                </Button>
+                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" disabled={busy || !activeCourse} onClick={handleHold}>
+                  {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
+                </Button>
+                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
+                  Tables
+                </Button>
+                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" disabled={busy} onClick={() => setDialog('checkout')}>
+                  Credit card
+                </Button>
+              </Box>
             </Box>
           </Box>
         </Paper>
