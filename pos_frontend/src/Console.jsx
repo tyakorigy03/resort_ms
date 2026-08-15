@@ -179,9 +179,6 @@ function Register() {
 
   const unassignedItems = order?.unassignedItems || []
   const subtotal = order?.subtotal || 0
-  const lineCount =
-    (order?.courses || []).reduce((s, c) => s + (c.items || []).length, 0) +
-    (order?.unassignedItems || []).length
 
   async function addItem(item) {
     if (!order) return
@@ -624,17 +621,11 @@ function Register() {
           </Box>
 
           <Box sx={{ px: 1.5, py: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
-              <Typography variant="body2" color="text.secondary">
-                {lineCount} items
-              </Typography>
-              <Typography variant="body2">Subtotal</Typography>
-            </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Typography variant="caption" color="text.secondary">
-                Tap a line, then use the keypad for its quantity.
+              <Typography variant="body2" color="text.secondary">
+                Total
               </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {money(subtotal)}
               </Typography>
             </Box>
