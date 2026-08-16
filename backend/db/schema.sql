@@ -909,3 +909,74 @@ CREATE TABLE IF NOT EXISTS kds_station_settings (
   UNIQUE KEY uk_kds_settings_pc (production_center_id),
   CONSTRAINT fk_kds_settings_pc FOREIGN KEY (production_center_id) REFERENCES production_centers(id) ON DELETE CASCADE
 );
+
+-- A reservation is the booking itself, independent of which physical room gets
+-- assigned. room_id stays NULL until check-in picks a room from availability.
+CREATE TABLE IF NOT EXISTS reservations (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  customer_id INT UNSIGNED NOT NULL,
+  room_id INT UNSIGNED NULL,
+  room_type_id INT UNSIGNED NOT NULL,
+  rate_plan_id INT UNSIGNED NULL,
+  check_in_date DATE NOT NULL,
+  check_out_date DATE NOT NULL,
+  adults INT UNSIGNED NOT NULL DEFAULT 1,
+  children INT UNSIGNED NOT NULL DEFAULT 0,
+  status ENUM('booked','checked_in','checked_out','no_show','cancelled') NOT NULL DEFAULT 'booked',
+  source VARCHAR(20) NULL,
+  notes TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_res_customer (customer_id),
+  KEY idx_res_room (room_id),
+  KEY idx_res_room_type (room_type_id),
+  KEY idx_res_dates (check_in_date, check_out_date),
+  KEY idx_res_status (status),
+  CONSTRAINT fk_res_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_res_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_res_room_type FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_res_rate_plan FOREIGN KEY (rate_plan_id) REFERENCES rate_plans(id) ON DELETE SET NULL
+);
+
+-- One folio per stay (guest bill). balance is a maintained running total,
+-- recomputed in the same transaction as every line-item write.
+CREATE TABLE IF NOT EXISTS folios (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reservation_id INT UNSIGNED NULL,
+  customer_id INT UNSIGNED NOT NULL,
+  room_id INT UNSIGNED NULL,
+  status ENUM('open','closed') NOT NULL DEFAULT 'open',
+  opened_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_at DATETIME NULL,
+  balance DECIMAL(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_folio_reservation (reservation_id),
+  KEY idx_folio_customer (customer_id),
+  KEY idx_folio_room (room_id),
+  CONSTRAINT fk_folio_reservation FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_folio_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_folio_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+);
+
+-- Folio ledger: positive amounts are charges, negative are payments. A POS
+-- "charge to room" lands here as type=pos_charge with source_order_id pointing
+-- back at the restaurant order that generated it.
+CREATE TABLE IF NOT EXISTS folio_line_items (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  folio_id INT UNSIGNED NOT NULL,
+  type ENUM('room_charge','pos_charge','payment','adjustment','tax') NOT NULL DEFAULT 'room_charge',
+  description VARCHAR(255) NULL,
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  source_order_id INT UNSIGNED NULL,
+  staff_id INT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_fli_folio (folio_id),
+  KEY idx_fli_order (source_order_id),
+  CONSTRAINT fk_fli_folio FOREIGN KEY (folio_id) REFERENCES folios(id) ON DELETE CASCADE,
+  CONSTRAINT fk_fli_order FOREIGN KEY (source_order_id) REFERENCES pos_orders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_fli_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE SET NULL
+);

@@ -504,10 +504,17 @@ async function splitCheck(orderId) {
 
 // Pay an open order: recompute totals from canonical lines, record the payment,
 // close the table session for dine-in, and write 'sale' stock movements OUT.
-async function checkout(orderId, { paymentMethod, paymentReceived, discount, tip, notes } = {}) {
+async function checkout(orderId, { paymentMethod, paymentReceived, discount, tip, notes, folioId } = {}) {
   const order = await findById(orderId)
   if (!order) throw httpError('Order not found', 404)
   if (order.status !== 'open') throw httpError('Order is already closed', 409)
+  if (paymentMethod === 'room_charge') {
+    if (!folioId) throw httpError('A folio is required for room charge payment', 400)
+    const [folioRows] = await pool.query(`SELECT id, status FROM folios WHERE id = ?`, [Number(folioId)])
+    if (!folioRows.length || folioRows[0].status !== 'open') {
+      throw httpError('Folio is not open', 400)
+    }
+  }
 
   const subtotal = order.subtotal
   const disc = Math.round(Math.min(Math.max(Number(discount) || 0, 0), subtotal) * 100) / 100
@@ -557,6 +564,17 @@ async function checkout(orderId, { paymentMethod, paymentReceived, discount, tip
           locationId,
           order.orderNumber,
         ],
+      )
+    }
+    if (paymentMethod === 'room_charge') {
+      await conn.query(
+        `INSERT INTO folio_line_items (folio_id, type, description, amount, source_order_id, staff_id)
+         VALUES (?, 'pos_charge', ?, ?, ?, ?)`,
+        [Number(folioId), `Restaurant - ${order.orderNumber}`, total, Number(orderId), order.staffId || null],
+      )
+      await conn.query(
+        'UPDATE folios SET balance = (SELECT COALESCE(SUM(amount), 0) FROM folio_line_items WHERE folio_id = ?) WHERE id = ?',
+        [Number(folioId), Number(folioId)],
       )
     }
     await conn.commit()

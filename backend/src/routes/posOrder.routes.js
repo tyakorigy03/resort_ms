@@ -196,6 +196,7 @@ router.post('/:id/checkout', verifyDevice, async (req, res, next) => {
         paymentReceived: req.body.paymentReceived,
         discount: req.body.discount,
         tip: req.body.tip,
+        folioId: req.body.folioId,
       }),
     )
   } catch (error) {

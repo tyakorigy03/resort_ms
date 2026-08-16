@@ -37,6 +37,8 @@ const tableSessionRoutes = require('./tableSession.routes')
 const kdsRoutes = require('./kds.routes')
 const kdsSettingsRoutes = require('./kdsSettings.routes')
 const cashDrawerRoutes = require('./cashDrawer.routes')
+const reservationRoutes = require('./reservation.routes')
+const folioRoutes = require('./folio.routes')
 
 const router = express.Router()
 
@@ -82,5 +84,7 @@ router.use('/table-sessions', tableSessionRoutes)
 router.use('/kds', kdsRoutes)
 router.use('/kds-settings', kdsSettingsRoutes)
 router.use('/cash-drawers', cashDrawerRoutes)
+router.use('/reservations', reservationRoutes)
+router.use('/folios', folioRoutes)
 
 module.exports = router
