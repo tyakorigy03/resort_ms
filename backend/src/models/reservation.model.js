@@ -117,8 +117,44 @@ async function findById(id) {
   return mapReservation(rows[0], await openFolioIdFor(rows[0]?.id))
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
 function parseCount(value) {
   return value === undefined || value === null || value === '' ? null : Number(value)
+}
+
+// Validate that a room can hold a reservation with the given type/dates, then
+// return the room row. `query` is either pool.query or a connection query so
+// callers inside transactions can reuse it.
+async function validateRoomAssignment(query, roomId, roomTypeId, checkInDate, checkOutDate, excludeReservationId) {
+  const [rooms] = await query('SELECT * FROM rooms WHERE id = ?', [Number(roomId)])
+  const room = rooms[0]
+  if (!room || !room.is_active) throw httpError('Room not found or inactive', 400)
+  if (room.room_type_id !== Number(roomTypeId)) {
+    throw httpError('Room does not match the reserved room type', 400)
+  }
+  const [overlaps] = await query(
+    `SELECT rv.id FROM reservations rv
+     WHERE rv.room_id = ? AND rv.status IN ('booked', 'checked_in')
+       AND rv.id <> ? AND rv.check_in_date < ? AND rv.check_out_date > ?`,
+    [Number(roomId), Number(excludeReservationId) || 0, checkOutDate, checkInDate],
+  )
+  if (overlaps.length) throw httpError('Room has an overlapping reservation', 400)
+  return room
+}
+
+// Recompute a room's status after a booking moved off it: 'occupied' is only
+// ever set by check-in and is cleared by check-out, so freeing a booking room
+// either leaves it 'reserved' (another booking holds it) or 'available'.
+async function freeRoom(query, roomId, excludeReservationId) {
+  if (!roomId) return
+  const [overlaps] = await query(
+    `SELECT rv.id FROM reservations rv
+     WHERE rv.room_id = ? AND rv.status IN ('booked', 'checked_in') AND rv.id <> ?
+     LIMIT 1`,
+    [Number(roomId), Number(excludeReservationId) || 0],
+  )
+  await query('UPDATE rooms SET status = ? WHERE id = ?', [overlaps.length ? 'reserved' : 'available', Number(roomId)])
 }
 
 async function create(data) {
@@ -129,27 +165,45 @@ async function create(data) {
   if (!customerId || !roomTypeId || !checkInDate || !checkOutDate) {
     throw httpError('Guest, room type, check-in and check-out dates are required', 400)
   }
+  if (!DATE_RE.test(checkInDate) || !DATE_RE.test(checkOutDate)) {
+    throw httpError('Check-in and check-out dates must be YYYY-MM-DD', 400)
+  }
   if (new Date(checkOutDate) <= new Date(checkInDate)) {
     throw httpError('Check-out must be after check-in', 400)
   }
-  const [result] = await pool.query(
-    `INSERT INTO reservations
-       (customer_id, room_id, room_type_id, rate_plan_id, check_in_date, check_out_date, adults, children, source, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      Number(customerId),
-      roomId ? Number(roomId) : null,
-      Number(roomTypeId),
-      ratePlanId ? Number(ratePlanId) : null,
-      checkInDate,
-      checkOutDate,
-      parseCount(adults) ?? 1,
-      parseCount(children) ?? 0,
-      source || null,
-      notes || null,
-    ],
-  )
-  return findById(result.insertId)
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    const assignedRoomId = roomId ? Number(roomId) : null
+    if (assignedRoomId) {
+      await validateRoomAssignment(conn.query.bind(conn), assignedRoomId, roomTypeId, checkInDate, checkOutDate, null)
+      await conn.query("UPDATE rooms SET status = 'reserved' WHERE id = ?", [assignedRoomId])
+    }
+    const [result] = await conn.query(
+      `INSERT INTO reservations
+         (customer_id, room_id, room_type_id, rate_plan_id, check_in_date, check_out_date, adults, children, source, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        Number(customerId),
+        assignedRoomId,
+        Number(roomTypeId),
+        ratePlanId ? Number(ratePlanId) : null,
+        checkInDate,
+        checkOutDate,
+        parseCount(adults) ?? 1,
+        parseCount(children) ?? 0,
+        source || null,
+        notes || null,
+      ],
+    )
+    await conn.commit()
+    return findById(result.insertId)
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
 }
 
 async function update(id, data) {
@@ -158,19 +212,59 @@ async function update(id, data) {
   if (!['booked', 'checked_in'].includes(current.status)) {
     throw httpError('Only booked or in-house reservations can be edited', 400)
   }
+  const nextRoomTypeId = data.roomTypeId !== undefined ? Number(data.roomTypeId) || null : current.roomTypeId
+  const nextCheckIn = data.checkInDate !== undefined ? data.checkInDate : current.checkInDate
+  const nextCheckOut = data.checkOutDate !== undefined ? data.checkOutDate : current.checkOutDate
+  if ((data.checkInDate !== undefined || data.checkOutDate !== undefined) &&
+      (!DATE_RE.test(nextCheckIn) || !DATE_RE.test(nextCheckOut))) {
+    throw httpError('Check-in and check-out dates must be YYYY-MM-DD', 400)
+  }
+  if (new Date(nextCheckOut) <= new Date(nextCheckIn)) {
+    throw httpError('Check-out must be after check-in', 400)
+  }
+
+  let nextRoomId = current.roomId
+  if (data.roomId !== undefined) {
+    if (current.status === 'checked_in') {
+      throw httpError('In-house guests cannot change rooms from the booking form', 400)
+    }
+    nextRoomId = data.roomId ? Number(data.roomId) : null
+  } else if (current.roomId && current.roomTypeId !== nextRoomTypeId) {
+    nextRoomId = null
+  }
+
   const fields = []
   const params = []
   const push = (col, val) => { fields.push(`${col} = ?`); params.push(val) }
-  if (data.roomTypeId !== undefined) push('room_type_id', Number(data.roomTypeId) || null)
+  if (data.roomTypeId !== undefined) push('room_type_id', nextRoomTypeId)
   if (data.ratePlanId !== undefined) push('rate_plan_id', data.ratePlanId ? Number(data.ratePlanId) : null)
-  if (data.checkInDate !== undefined) push('check_in_date', data.checkInDate)
-  if (data.checkOutDate !== undefined) push('check_out_date', data.checkOutDate)
+  if (data.checkInDate !== undefined) push('check_in_date', nextCheckIn)
+  if (data.checkOutDate !== undefined) push('check_out_date', nextCheckOut)
   if (data.adults !== undefined) push('adults', parseCount(data.adults) ?? 1)
   if (data.children !== undefined) push('children', parseCount(data.children) ?? 0)
   if (data.source !== undefined) push('source', data.source || null)
   if (data.notes !== undefined) push('notes', data.notes || null)
-  if (fields.length) {
-    await pool.query(`UPDATE reservations SET ${fields.join(', ')} WHERE id = ?`, [...params, Number(id)])
+  if (current.roomId !== nextRoomId) push('room_id', nextRoomId)
+
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    if (nextRoomId) {
+      await validateRoomAssignment(conn.query.bind(conn), nextRoomId, nextRoomTypeId, nextCheckIn, nextCheckOut, id)
+      await conn.query("UPDATE rooms SET status = 'reserved' WHERE id = ?", [nextRoomId])
+    }
+    if (current.roomId && current.roomId !== nextRoomId) {
+      await freeRoom(conn.query.bind(conn), current.roomId, id)
+    }
+    if (fields.length) {
+      await conn.query(`UPDATE reservations SET ${fields.join(', ')} WHERE id = ?`, [...params, Number(id)])
+    }
+    await conn.commit()
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
   }
   return findById(id)
 }
@@ -181,7 +275,18 @@ async function remove(id) {
   if (current.status === 'checked_in') {
     throw httpError('In-house guests must check out before a reservation can be removed', 400)
   }
-  await pool.query('UPDATE reservations SET status = ? WHERE id = ?', ['cancelled', Number(id)])
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    if (current.roomId) await freeRoom(conn.query.bind(conn), current.roomId, id)
+    await conn.query('UPDATE reservations SET status = ? WHERE id = ?', ['cancelled', Number(id)])
+    await conn.commit()
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
   return findById(id)
 }
 
@@ -219,8 +324,9 @@ async function availableRooms({ checkInDate, checkOutDate, roomTypeId } = {}) {
 
 // Per-day availability for the front desk home screen: for every active room
 // type, the count of active rooms with no overlapping booked/checked_in
-// reservation on each date (the same overlap condition availableRooms uses,
-// aggregated per day per room type instead of a flat room list).
+// reservation and no room_block on each date (the same overlap condition
+// availableRooms uses, aggregated per day per room type instead of a flat room
+// list).
 async function availabilityGrid({ startDate, days = 14 } = {}) {
   const start = startDate || todayStr()
   const count = Math.max(1, Math.min(Number(days) || 14, 60))
@@ -249,12 +355,15 @@ async function availabilityGrid({ startDate, days = 14 } = {}) {
                 SELECT 1 FROM reservations rv
                 WHERE rv.room_id = r.id AND rv.status IN ('booked', 'checked_in')
                   AND rv.check_in_date < ? AND rv.check_out_date > ?
+              ) AND NOT EXISTS (
+                SELECT 1 FROM room_blocks b
+                WHERE b.room_id = r.id AND b.start_date <= ? AND b.end_date >= ?
               ) THEN 1 ELSE 0 END) AS available
        FROM room_types rt
        JOIN rooms r ON r.room_type_id = rt.id
        WHERE rt.is_active = 1 AND r.is_active = 1
        GROUP BY rt.id`,
-      [addDays(date, 1), date],
+      [addDays(date, 1), date, date, date],
     )
     for (const row of rows) {
       const gi = index[row.room_type_id]
@@ -264,14 +373,21 @@ async function availabilityGrid({ startDate, days = 14 } = {}) {
   return { startDate: start, days: count, dates, roomTypes: grid }
 }
 
-// Tape-chart data: every room (with floor/type/housekeeping) plus every
-// reservation overlapping [startDate, startDate + days). Reservations without
-// a room assigned are kept (roomId null) so the frontend can draw an
-// "unassigned" lane instead of dropping them.
+// Stay View data for the front desk home screen:
+//  - rooms: every room (active and inactive) with floor/type/housekeeping
+//  - stays: reservations overlapping [startDate, startDate + days)
+//  - blocks: room_blocks rows overlapping the same window
+//  - roomTypes: active room types with per-date available counts (minus
+//    overlaps and blocks) and per-date average rate from rate_plan_prices
+//  - occupancy: per-date percent of active rooms with a checked_in guest
+//  - statusCounts: occupancy-style partition of active rooms on the anchor
+//    date (vacant/occupied/reserved/blocked) plus dueOut and dirty counts
 async function stays({ startDate, days = 14 } = {}) {
   const start = startDate || todayStr()
   const count = Math.max(1, Math.min(Number(days) || 14, 60))
   const end = addDays(start, count)
+  const dates = dateSeries(start, count)
+
   const [roomRows] = await pool.query(
     `SELECT r.id, r.room_number, r.floor, r.room_type_id, r.status, r.housekeeping_status, r.is_active,
             rt.name AS room_type_name
@@ -295,10 +411,134 @@ async function stays({ startDate, days = 14 } = {}) {
        AND rv.check_in_date < ? AND rv.check_out_date > ?`,
     [end, start],
   )
+  const [blockRows] = await pool.query(
+    `SELECT b.id, b.room_id, r.room_type_id,
+            DATE_FORMAT(b.start_date, '%Y-%m-%d') AS start_date,
+            DATE_FORMAT(b.end_date, '%Y-%m-%d') AS end_date,
+            b.reason, r.room_number, rt.name AS room_type_name
+     FROM room_blocks b
+     JOIN rooms r ON r.id = b.room_id
+     LEFT JOIN room_types rt ON rt.id = r.room_type_id
+     WHERE b.start_date < ? AND b.end_date >= ?`,
+    [end, start],
+  )
+
+  const [typeRows] = await pool.query(
+    `SELECT rt.id, rt.name, rt.base_rate,
+            (SELECT COUNT(*) FROM rooms r WHERE r.room_type_id = rt.id AND r.is_active = 1) AS total_rooms
+     FROM room_types rt
+     WHERE rt.is_active = 1
+     ORDER BY rt.name ASC`,
+  )
+  const typeIndex = {}
+  const roomTypes = typeRows.map((t) => {
+    const group = {
+      id: t.id,
+      name: t.name,
+      baseRate: Number(t.base_rate),
+      totalRooms: Number(t.total_rooms || 0),
+      available: dates.map(() => 0),
+      avgRate: dates.map(() => null),
+    }
+    typeIndex[group.id] = group
+    return group
+  })
+  if (typeRows.length) {
+    const ids = typeRows.map((t) => t.id)
+    const [prices] = await pool.query(
+      `SELECT room_type_id, AVG(rate) AS avg_rate
+       FROM rate_plan_prices
+       WHERE room_type_id IN (${ids.map(() => '?').join(',')})
+       GROUP BY room_type_id`,
+      ids,
+    )
+    for (const p of prices) {
+      const group = typeIndex[p.room_type_id]
+      if (group) group.avgRate = dates.map(() => Number(p.avg_rate))
+    }
+  }
+
+  const [[totalRow]] = await pool.query('SELECT COUNT(*) AS c FROM rooms WHERE is_active = 1')
+  const totalRooms = Number(totalRow.c || 0)
+  const occupancy = dates.map(() => 0)
+
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i]
+    const [avRows] = await pool.query(
+      `SELECT rt.id AS room_type_id,
+              SUM(CASE WHEN NOT EXISTS (
+                SELECT 1 FROM reservations rv
+                WHERE rv.room_id = r.id AND rv.status IN ('booked', 'checked_in')
+                  AND rv.check_in_date < ? AND rv.check_out_date > ?
+              ) AND NOT EXISTS (
+                SELECT 1 FROM room_blocks b
+                WHERE b.room_id = r.id AND b.start_date <= ? AND b.end_date >= ?
+              ) THEN 1 ELSE 0 END) AS available
+       FROM room_types rt
+       JOIN rooms r ON r.room_type_id = rt.id
+       WHERE rt.is_active = 1 AND r.is_active = 1
+       GROUP BY rt.id`,
+      [addDays(date, 1), date, date, date],
+    )
+    for (const row of avRows) {
+      const group = typeIndex[row.room_type_id]
+      if (group) group.available[i] = Number(row.available || 0)
+    }
+    const [[occRow]] = await pool.query(
+      `SELECT COUNT(DISTINCT rv.room_id) AS c
+       FROM reservations rv
+       WHERE rv.status = 'checked_in' AND rv.room_id IS NOT NULL
+         AND rv.check_in_date < ? AND rv.check_out_date > ?`,
+      [addDays(date, 1), date],
+    )
+    occupancy[i] = totalRooms ? Math.round((Number(occRow.c || 0) / totalRooms) * 1000) / 10 : 0
+  }
+
+  const idSet = (rows, key) => new Set(rows.filter((r) => r[key]).map((r) => Number(r[key])))
+  const [occupiedRows] = await pool.query(
+    `SELECT DISTINCT rv.room_id FROM reservations rv
+     WHERE rv.status = 'checked_in' AND rv.room_id IS NOT NULL
+       AND rv.check_in_date < ? AND rv.check_out_date > ?`,
+    [addDays(start, 1), start],
+  )
+  const [reservedRows] = await pool.query(
+    `SELECT DISTINCT rv.room_id FROM reservations rv
+     WHERE rv.status = 'booked' AND rv.room_id IS NOT NULL
+       AND rv.check_in_date < ? AND rv.check_out_date > ?`,
+    [addDays(start, 1), start],
+  )
+  const [blockedRows] = await pool.query(
+    `SELECT DISTINCT b.room_id FROM room_blocks b
+     JOIN rooms r ON r.id = b.room_id
+     WHERE r.is_active = 1 AND b.start_date <= ? AND b.end_date >= ?`,
+    [start, start],
+  )
+  const occupiedSet = idSet(occupiedRows, 'room_id')
+  const reservedSet = idSet(reservedRows, 'room_id')
+  const blockedSet = idSet(blockedRows, 'room_id')
+  for (const id of occupiedSet) {
+    reservedSet.delete(id)
+    blockedSet.delete(id)
+  }
+  for (const id of reservedSet) blockedSet.delete(id)
+
+  const [[dueOutRow]] = await pool.query(
+    `SELECT COUNT(*) AS c FROM reservations rv WHERE rv.status = 'checked_in' AND rv.check_out_date = ?`,
+    [start],
+  )
+  const [[dirtyRow]] = await pool.query(
+    `SELECT COUNT(*) AS c FROM rooms WHERE is_active = 1 AND housekeeping_status = 'dirty'`,
+  )
+
+  const occupied = occupiedSet.size
+  const reserved = reservedSet.size
+  const blocked = blockedSet.size
+
   return {
     startDate: start,
     endDate: end,
     days: count,
+    totalRooms,
     rooms: roomRows.map((row) => ({
       id: row.id,
       roomNumber: row.room_number,
@@ -309,6 +549,7 @@ async function stays({ startDate, days = 14 } = {}) {
       housekeepingStatus: row.housekeeping_status,
       isActive: Boolean(row.is_active),
     })),
+    roomTypes,
     stays: resRows.map((row) => ({
       id: row.id,
       customerId: row.customer_id,
@@ -323,6 +564,26 @@ async function stays({ startDate, days = 14 } = {}) {
       status: row.status,
       source: row.source || null,
     })),
+    blocks: blockRows.map((row) => ({
+      id: row.id,
+      roomId: row.room_id,
+      roomTypeId: row.room_type_id,
+      roomTypeName: row.room_type_name || null,
+      roomNumber: row.room_number || null,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      reason: row.reason || 'Blocked',
+    })),
+    statusCounts: {
+      all: totalRooms,
+      vacant: Math.max(0, totalRooms - occupied - reserved - blocked),
+      occupied,
+      reserved,
+      blocked,
+      dueOut: Number(dueOutRow.c || 0),
+      dirty: Number(dirtyRow.c || 0),
+    },
+    occupancy,
   }
 }
 

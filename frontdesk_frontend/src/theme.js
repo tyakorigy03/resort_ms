@@ -18,6 +18,7 @@ export const tokens = {
     textPrimary: '#f2f2f3',
     textSecondary: '#9a9a9d',
     divider: '#3a3a3c',
+    weekend: '#272117',
   },
   light: {
     bg: '#f1f5f9',
@@ -35,7 +36,25 @@ export const tokens = {
     textPrimary: '#0f172a',
     textSecondary: '#64748b',
     divider: '#e2e8f0',
+    weekend: '#fdf6e3',
   },
+}
+
+// Status/bar colors for the Stay View. Fixed hues shared by both themes so the
+// same meaning reads identically in light and dark mode (spec: status colors
+// keep the same hue family in both themes).
+export const statusColors = {
+  neutral: '#64748b',
+  vacant: '#16a34a',
+  occupied: '#2563eb',
+  reserved: '#db2777',
+  blocked: '#dc2626',
+  dueOut: '#f59e0b',
+  dirty: '#9333ea',
+  checkedIn: '#16a34a',
+  booked: '#db2777',
+  block: '#dc2626',
+  rose: '#db2777',
 }
 
 export function buildTheme(mode) {
@@ -52,6 +71,8 @@ export function buildTheme(mode) {
       text: { primary: t.textPrimary, secondary: t.textSecondary },
       divider: t.divider,
       topBar: t.topBar,
+      weekend: t.weekend,
+      status: statusColors,
     },
     typography: {
       fontFamily: "'Poppins', 'Roboto', sans-serif",
