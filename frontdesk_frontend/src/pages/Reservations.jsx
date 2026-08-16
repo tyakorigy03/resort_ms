@@ -8,21 +8,20 @@ import {
   Card,
   CardContent,
   Chip,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
-  Grid,
   IconButton,
   InputLabel,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
   MenuItem,
   Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -30,12 +29,22 @@ import {
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
-import SearchIcon from '@mui/icons-material/Search'
 import { api } from '../api'
-import { formatDate } from '../lib/format'
 import { StatusChip } from '../lib/status.jsx'
 
 const STATUSES = ['booked', 'checked_in', 'checked_out', 'no_show', 'cancelled']
+
+function shortDate(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+const inputSx = {
+  '& .MuiInputBase-input': { fontSize: '0.78rem' },
+  '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+}
 
 function NewReservationDialog({ open, onClose, onCreated }) {
   const [roomTypes, setRoomTypes] = useState([])
@@ -131,128 +140,201 @@ function NewReservationDialog({ open, onClose, onCreated }) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
-        New reservation
-        <Box sx={{ flexGrow: 1 }} />
-        <IconButton size="small" onClick={onClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 2,
+            width: { xs: 'calc(100% - 24px)', sm: 560 },
+            maxWidth: { xs: 'calc(100% - 24px)', sm: 560 },
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        },
+      }}
+    >
+      <DialogTitle sx={{ py: 1, px: 2, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+            New reservation
+          </Typography>
+          <IconButton onClick={onClose} size="small" sx={{ color: 'text.secondary', p: 0.25 }}>
+            <CloseIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Box>
       </DialogTitle>
-      <DialogContent>
-        {loadError && <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert>}
-        <Grid container spacing={2} sx={{ mt: 0 }}>
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-              Guest
-            </Typography>
-            <ToggleButtonGroup
-              exclusive
-              size="small"
-              value={newCustomer ? 'new' : 'existing'}
-              onChange={(e, v) => {
-                if (!v) return
-                setNewCustomer(v === 'new')
-                setError(null)
-              }}
-              fullWidth
-            >
-              <ToggleButton value="existing">Existing guest</ToggleButton>
-              <ToggleButton value="new">New guest</ToggleButton>
-            </ToggleButtonGroup>
-          </Grid>
-          {newCustomer ? (
-            <>
-              <Grid item xs={12} sm={6}>
-                <TextField label="First name" value={form.firstName} onChange={set('firstName')} size="small" fullWidth required />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Last name" value={form.lastName} onChange={set('lastName')} size="small" fullWidth required />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Phone" value={form.phone} onChange={set('phone')} size="small" fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Email" type="email" value={form.email} onChange={set('email')} size="small" fullWidth />
-              </Grid>
-            </>
-          ) : (
-            <Grid item xs={12}>
-              <Autocomplete
-                size="small"
-                options={customers}
-                getOptionLabel={(c) => `${c.firstName} ${c.lastName}${c.phone ? ` · ${c.phone}` : ''}`}
-                value={customer}
-                onChange={(e, v) => setCustomer(v)}
-                renderInput={(params) => <TextField {...params} label="Search guest" />}
-              />
-            </Grid>
-          )}
+      <DialogContent
+        sx={{
+          p: 1.5,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+          flex: '1 1 0',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          minHeight: 340,
+        }}
+      >
+        {loadError && (
+          <Typography variant="caption" sx={{ color: 'error.main', fontSize: '0.7rem' }}>
+            {loadError}
+          </Typography>
+        )}
 
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-              Stay
-            </Typography>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Room type</InputLabel>
-              <Select label="Room type" value={form.roomTypeId} onChange={set('roomTypeId')}>
-                {roomTypes.map((rt) => (
-                  <MenuItem key={rt.id} value={rt.id}>
-                    {rt.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Rate plan</InputLabel>
-              <Select label="Rate plan" value={form.ratePlanId} onChange={set('ratePlanId')}>
-                <MenuItem value="">None</MenuItem>
-                {ratePlans.map((rp) => (
-                  <MenuItem key={rp.id} value={rp.id}>
-                    {rp.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField label="Check-in" type="date" value={form.checkInDate} onChange={set('checkInDate')} size="small" fullWidth required InputProps={{ inputProps: { min: today } }} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField label="Check-out" type="date" value={form.checkOutDate} onChange={set('checkOutDate')} size="small" fullWidth required InputProps={{ inputProps: { min: form.checkInDate } }} />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <TextField label="Adults" type="number" value={form.adults} onChange={set('adults')} size="small" fullWidth inputProps={{ min: 0 }} />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <TextField label="Children" type="number" value={form.children} onChange={set('children')} size="small" fullWidth inputProps={{ min: 0 }} />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Source</InputLabel>
-              <Select label="Source" value={form.source} onChange={set('source')}>
-                <MenuItem value="walk_in">Walk-in</MenuItem>
-                <MenuItem value="phone">Phone</MenuItem>
-                <MenuItem value="ota">Online travel agency</MenuItem>
-                <MenuItem value="direct">Direct</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12}>
-            <TextField label="Notes" value={form.notes} onChange={set('notes')} size="small" fullWidth multiline minRows={2} />
-          </Grid>
-        </Grid>
-        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600, mt: 0.5 }}>
+          Guest
+        </Typography>
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={newCustomer ? 'new' : 'existing'}
+          onChange={(e, v) => {
+            if (!v) return
+            setNewCustomer(v === 'new')
+            setError(null)
+          }}
+          fullWidth
+        >
+          <ToggleButton value="existing">Existing guest</ToggleButton>
+          <ToggleButton value="new">New guest</ToggleButton>
+        </ToggleButtonGroup>
+
+        {newCustomer ? (
+          <>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                autoFocus
+                variant="standard"
+                size="small"
+                label="First name"
+                value={form.firstName}
+                onChange={set('firstName')}
+                fullWidth
+                required
+                sx={inputSx}
+              />
+              <TextField
+                variant="standard"
+                size="small"
+                label="Last name"
+                value={form.lastName}
+                onChange={set('lastName')}
+                fullWidth
+                required
+                sx={inputSx}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField variant="standard" size="small" label="Phone" value={form.phone} onChange={set('phone')} fullWidth sx={inputSx} />
+              <TextField variant="standard" size="small" label="Email" type="email" value={form.email} onChange={set('email')} fullWidth sx={inputSx} />
+            </Box>
+          </>
+        ) : (
+          <Autocomplete
+            size="small"
+            options={customers}
+            getOptionLabel={(c) => `${c.firstName} ${c.lastName}${c.phone ? ` · ${c.phone}` : ''}`}
+            value={customer}
+            onChange={(e, v) => setCustomer(v)}
+            renderInput={(params) => <TextField {...params} variant="standard" label="Search guest" sx={inputSx} />}
+          />
+        )}
+
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600, mt: 0.5 }}>
+          Stay
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <FormControl variant="standard" size="small" fullWidth sx={inputSx}>
+            <InputLabel sx={{ fontSize: '0.75rem' }}>Room type</InputLabel>
+            <Select
+              label="Room type"
+              value={form.roomTypeId}
+              onChange={set('roomTypeId')}
+              sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+            >
+              {roomTypes.map((rt) => (
+                <MenuItem key={rt.id} value={rt.id}>
+                  {rt.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl variant="standard" size="small" fullWidth sx={inputSx}>
+            <InputLabel sx={{ fontSize: '0.75rem' }}>Rate plan</InputLabel>
+            <Select
+              label="Rate plan"
+              value={form.ratePlanId}
+              onChange={set('ratePlanId')}
+              sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+            >
+              <MenuItem value="">None</MenuItem>
+              {ratePlans.map((rp) => (
+                <MenuItem key={rp.id} value={rp.id}>
+                  {rp.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            variant="standard"
+            size="small"
+            label="Check-in"
+            type="date"
+            value={form.checkInDate}
+            onChange={set('checkInDate')}
+            fullWidth
+            required
+            sx={inputSx}
+            InputProps={{ inputProps: { min: today } }}
+          />
+          <TextField
+            variant="standard"
+            size="small"
+            label="Check-out"
+            type="date"
+            value={form.checkOutDate}
+            onChange={set('checkOutDate')}
+            fullWidth
+            required
+            sx={inputSx}
+            InputProps={{ inputProps: { min: form.checkInDate } }}
+          />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField variant="standard" size="small" label="Adults" type="number" value={form.adults} onChange={set('adults')} fullWidth inputProps={{ min: 0 }} sx={inputSx} />
+          <TextField variant="standard" size="small" label="Children" type="number" value={form.children} onChange={set('children')} fullWidth inputProps={{ min: 0 }} sx={inputSx} />
+          <FormControl variant="standard" size="small" fullWidth sx={inputSx}>
+            <InputLabel sx={{ fontSize: '0.75rem' }}>Source</InputLabel>
+            <Select
+              label="Source"
+              value={form.source}
+              onChange={set('source')}
+              sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+            >
+              <MenuItem value="walk_in">Walk-in</MenuItem>
+              <MenuItem value="phone">Phone</MenuItem>
+              <MenuItem value="ota">Online travel agency</MenuItem>
+              <MenuItem value="direct">Direct</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+        <TextField variant="standard" size="small" label="Notes" value={form.notes} onChange={set('notes')} fullWidth multiline minRows={2} sx={inputSx} />
+
+        {error && (
+          <Typography variant="caption" sx={{ color: 'error.main', fontSize: '0.7rem' }}>
+            {error}
+          </Typography>
+        )}
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit">
+      <DialogActions sx={{ px: 2, py: 1.5, flexShrink: 0 }}>
+        <Button size="small" sx={{ color: 'text.secondary', bgcolor: '#f3f4f6' }} onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={submit} disabled={busy} startIcon={busy ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}>
+        <Button size="small" variant="contained" color="primary" onClick={submit} disabled={busy}>
           Create reservation
         </Button>
       </DialogActions>
@@ -296,91 +378,116 @@ export default function Reservations({ newBooking }) {
   const openCount = useMemo(() => (rows || []).filter((r) => r.status === 'booked' || r.status === 'checked_in').length, [rows])
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Reservations
-        </Typography>
-        <Chip label={`${openCount} upcoming / in-house`} color="primary" size="small" variant="outlined" />
-        <Box sx={{ flexGrow: 1 }} />
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpen(true)}>
-          New reservation
-        </Button>
-      </Box>
-
+    <>
       <Card>
-        <CardContent sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <TextField
-            label="Search guest / room"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            size="small"
-            sx={{ minWidth: 260 }}
-            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} /> }}
-          />
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Status</InputLabel>
-            <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {STATUSES.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {s.replace('_', ' ')}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField label="Check-in date" type="date" value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} size="small" />
-        </CardContent>
-      </Card>
-
-      {error && <Alert severity="error">{error}</Alert>}
-
-      <Card>
-        {!rows ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
-            <CircularProgress />
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+              Reservations
+            </Typography>
+            <Chip label={`${openCount} upcoming / in-house`} color="primary" size="small" variant="outlined" />
           </Box>
-        ) : (
-          <List dense disablePadding>
-            {rows.length === 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-                No reservations match the current filters
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              variant="standard"
+              label="Search guest / room"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{ minWidth: 180 }}
+            />
+            <FormControl variant="standard" size="small" sx={{ minWidth: 140 }}>
+              <InputLabel>Status</InputLabel>
+              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <MenuItem value="">All</MenuItem>
+                {STATUSES.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s.replace('_', ' ')}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box sx={{ minWidth: 140 }}>
+              <Typography variant="caption" component="label" htmlFor="checkInDateFilter" sx={{ display: 'block', fontSize: '0.68rem', color: 'text.secondary', mb: 0.25 }}>
+                Check-in date
               </Typography>
-            )}
-            {rows.map((r) => (
-              <ListItem key={r.id} disablePadding divider>
-                <ListItemButton onClick={() => navigate(`/reservations/${r.id}`)}>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {r.guestName}
-                        </Typography>
-                        {r.roomNumber && (
-                          <Typography variant="caption" color="text.secondary">
-                            Room {r.roomNumber}
-                          </Typography>
-                        )}
-                        <StatusChip status={r.status} />
-                      </Box>
-                    }
-                    secondary={`${formatDate(r.checkInDate)} → ${formatDate(r.checkOutDate)} · ${r.nights} night${r.nights === 1 ? '' : 's'} · ${r.roomTypeName || 'Room'}${r.source ? ` · ${r.source.replace('_', ' ')}` : ''}`}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        )}
-      </Card>
+              <TextField
+                id="checkInDateFilter"
+                size="small"
+                variant="standard"
+                type="date"
+                value={checkInDate}
+                onChange={(e) => setCheckInDate(e.target.value)}
+              />
+            </Box>
+            <Button size="small" variant="contained" startIcon={<AddIcon fontSize="small" />} onClick={() => setOpen(true)}>
+              New reservation
+            </Button>
+          </Box>
+        </Box>
 
-      <NewReservationDialog
-        open={open}
-        onClose={() => {
-          setOpen(false)
-          if (params.id === undefined) navigate('/reservations')
-        }}
-        onCreated={(reservation) => navigate(`/reservations/${reservation.id}`)}
-      />
-    </Box>
+        {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+
+        <Table
+          size="small"
+          sx={{
+            tableLayout: 'fixed',
+            minWidth: 720,
+            '& .MuiTableCell-root': { py: 0.55, px: 0.75, fontSize: '0.75rem', lineHeight: 1.3 },
+          }}
+        >
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600 }}>Guest</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Room</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Check-in</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Check-out</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Nights</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Source</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {!rows ? (
+              <TableRow>
+                <TableCell colSpan={8}>Loading...</TableCell>
+              </TableRow>
+            ) : (
+              rows.map((r) => (
+                <TableRow key={r.id} hover onClick={() => navigate(`/reservations/${r.id}`)} sx={{ cursor: 'pointer' }}>
+                  <TableCell sx={{ fontWeight: 500 }}>{r.guestName}</TableCell>
+                  <TableCell>{r.roomNumber || '—'}</TableCell>
+                  <TableCell>{r.roomTypeName || '—'}</TableCell>
+                  <TableCell>{shortDate(r.checkInDate)}</TableCell>
+                  <TableCell>{shortDate(r.checkOutDate)}</TableCell>
+                  <TableCell>{r.nights}</TableCell>
+                  <TableCell>{r.source ? r.source.replace('_', ' ') : '—'}</TableCell>
+                  <TableCell>
+                    <StatusChip status={r.status} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+            {rows && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8}>No reservations.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
+    <NewReservationDialog
+      open={open}
+      onClose={() => {
+        setOpen(false)
+        if (params.id === undefined) navigate('/reservations')
+      }}
+      onCreated={(reservation) => navigate(`/reservations/${reservation.id}`)}
+    />
+    </>
   )
 }

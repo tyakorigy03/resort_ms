@@ -24,6 +24,24 @@ router.get('/available-rooms', verifyToken, async (req, res, next) => {
   }
 })
 
+router.get('/availability-grid', verifyToken, async (req, res, next) => {
+  try {
+    const { startDate, days } = req.query
+    res.json(await reservationModel.availabilityGrid({ startDate, days }))
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/stays', verifyToken, async (req, res, next) => {
+  try {
+    const { startDate, days } = req.query
+    res.json(await reservationModel.stays({ startDate, days }))
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/', verifyToken, async (req, res, next) => {
   try {
     const { status, checkInDate, checkOutDate, search, limit } = req.query

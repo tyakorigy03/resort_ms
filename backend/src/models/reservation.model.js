@@ -21,6 +21,25 @@ function nightsFor(checkIn, checkOut) {
   return Math.max(0, Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000))
 }
 
+function todayStr() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+function dateSeries(startDate, days) {
+  const dates = []
+  for (let i = 0; i < days; i++) dates.push(addDays(startDate, i))
+  return dates
+}
+
 function mapReservation(row, openFolioId) {
   if (!row) return null
   return {
@@ -198,6 +217,115 @@ async function availableRooms({ checkInDate, checkOutDate, roomTypeId } = {}) {
   }))
 }
 
+// Per-day availability for the front desk home screen: for every active room
+// type, the count of active rooms with no overlapping booked/checked_in
+// reservation on each date (the same overlap condition availableRooms uses,
+// aggregated per day per room type instead of a flat room list).
+async function availabilityGrid({ startDate, days = 14 } = {}) {
+  const start = startDate || todayStr()
+  const count = Math.max(1, Math.min(Number(days) || 14, 60))
+  const dates = dateSeries(start, count)
+  const [types] = await pool.query(
+    `SELECT rt.id, rt.name, rt.base_rate,
+            (SELECT COUNT(*) FROM rooms r WHERE r.room_type_id = rt.id AND r.is_active = 1) AS total_rooms
+     FROM room_types rt
+     WHERE rt.is_active = 1
+     ORDER BY rt.name ASC`,
+  )
+  const grid = types.map((t) => ({
+    id: t.id,
+    name: t.name,
+    baseRate: Number(t.base_rate),
+    totalRooms: Number(t.total_rooms || 0),
+    available: dates.map(() => 0),
+  }))
+  const index = {}
+  grid.forEach((g, i) => { index[g.id] = i })
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i]
+    const [rows] = await pool.query(
+      `SELECT rt.id AS room_type_id,
+              SUM(CASE WHEN NOT EXISTS (
+                SELECT 1 FROM reservations rv
+                WHERE rv.room_id = r.id AND rv.status IN ('booked', 'checked_in')
+                  AND rv.check_in_date < ? AND rv.check_out_date > ?
+              ) THEN 1 ELSE 0 END) AS available
+       FROM room_types rt
+       JOIN rooms r ON r.room_type_id = rt.id
+       WHERE rt.is_active = 1 AND r.is_active = 1
+       GROUP BY rt.id`,
+      [addDays(date, 1), date],
+    )
+    for (const row of rows) {
+      const gi = index[row.room_type_id]
+      if (gi !== undefined) grid[gi].available[i] = Number(row.available || 0)
+    }
+  }
+  return { startDate: start, days: count, dates, roomTypes: grid }
+}
+
+// Tape-chart data: every room (with floor/type/housekeeping) plus every
+// reservation overlapping [startDate, startDate + days). Reservations without
+// a room assigned are kept (roomId null) so the frontend can draw an
+// "unassigned" lane instead of dropping them.
+async function stays({ startDate, days = 14 } = {}) {
+  const start = startDate || todayStr()
+  const count = Math.max(1, Math.min(Number(days) || 14, 60))
+  const end = addDays(start, count)
+  const [roomRows] = await pool.query(
+    `SELECT r.id, r.room_number, r.floor, r.room_type_id, r.status, r.housekeeping_status, r.is_active,
+            rt.name AS room_type_name
+     FROM rooms r
+     LEFT JOIN room_types rt ON rt.id = r.room_type_id
+     ORDER BY (r.floor IS NULL) ASC, r.floor ASC, CAST(r.room_number AS UNSIGNED), r.room_number ASC`,
+  )
+  const [resRows] = await pool.query(
+    `SELECT rv.id, rv.customer_id, rv.room_id, rv.room_type_id, rv.rate_plan_id,
+            DATE_FORMAT(rv.check_in_date, '%Y-%m-%d') AS check_in_date,
+            DATE_FORMAT(rv.check_out_date, '%Y-%m-%d') AS check_out_date,
+            rv.status, rv.source,
+            CONCAT_WS(' ', c.first_name, c.last_name) AS guest_name,
+            rt.name AS room_type_name,
+            r.room_number
+     FROM reservations rv
+     JOIN customers c ON c.id = rv.customer_id
+     LEFT JOIN room_types rt ON rt.id = rv.room_type_id
+     LEFT JOIN rooms r ON r.id = rv.room_id
+     WHERE rv.status IN ('booked', 'checked_in', 'checked_out')
+       AND rv.check_in_date < ? AND rv.check_out_date > ?`,
+    [end, start],
+  )
+  return {
+    startDate: start,
+    endDate: end,
+    days: count,
+    rooms: roomRows.map((row) => ({
+      id: row.id,
+      roomNumber: row.room_number,
+      floor: row.floor,
+      roomTypeId: row.room_type_id,
+      roomTypeName: row.room_type_name || null,
+      status: row.status,
+      housekeepingStatus: row.housekeeping_status,
+      isActive: Boolean(row.is_active),
+    })),
+    stays: resRows.map((row) => ({
+      id: row.id,
+      customerId: row.customer_id,
+      roomId: row.room_id,
+      roomTypeId: row.room_type_id,
+      ratePlanId: row.rate_plan_id,
+      roomTypeName: row.room_type_name || null,
+      roomNumber: row.room_number || null,
+      guestName: row.guest_name,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+      status: row.status,
+      source: row.source || null,
+    })),
+  }
+}
+
 async function checkIn(id, roomId, opts = {}) {
   const conn = await pool.getConnection()
   try {
@@ -350,4 +478,4 @@ async function dashboardCounts() {
   }
 }
 
-module.exports = { findAll, findById, create, update, remove, checkIn, checkOut, availableRooms, dashboardCounts }
+module.exports = { findAll, findById, create, update, remove, checkIn, checkOut, availableRooms, availabilityGrid, stays, dashboardCounts }

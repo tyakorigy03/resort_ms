@@ -76,6 +76,22 @@ export const api = {
     return request(`/api/reservations/available-rooms?${qs}`)
   },
 
+  availabilityGrid: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, v)
+    })
+    return request(`/api/reservations/availability-grid?${qs}`)
+  },
+
+  stays: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, v)
+    })
+    return request(`/api/reservations/stays?${qs}`)
+  },
+
   folio: (id) => request(`/api/folios/${id}`),
   addFolioLine: (id, body) =>
     request(`/api/folios/${id}/lines`, { method: 'POST', body }),

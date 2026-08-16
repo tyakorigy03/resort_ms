@@ -15,7 +15,6 @@ import EventNoteIcon from '@mui/icons-material/EventNote'
 import HotelIcon from '@mui/icons-material/Hotel'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import LockIcon from '@mui/icons-material/Lock'
-import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
 import { useThemeMode } from './ThemeModeProvider'
 import { useAuth } from './AuthProvider'
 import NavButton from './components/NavButton'
@@ -42,9 +41,8 @@ export default function FrontDeskShell({ children }) {
             Front Desk
           </Typography>
 
-          <NavButton to="/" icon={<DashboardIcon fontSize="small" />} label="Dashboard" />
+          <NavButton to="/" icon={<DashboardIcon fontSize="small" />} label="Stays" end />
           <NavButton to="/reservations" icon={<EventNoteIcon fontSize="small" />} label="Reservations" />
-          <NavButton to="/rack" icon={<MeetingRoomIcon fontSize="small" />} label="Rack" />
 
           <Box sx={{ flexGrow: 1 }} />
 
