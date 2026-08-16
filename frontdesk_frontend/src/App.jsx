@@ -14,7 +14,12 @@ export default function App() {
   const location = useLocation()
 
   if (!user) {
-    return <Login onAuth={(session) => setUser(session.user)} />
+    return (
+      <Routes>
+        <Route path="/login" element={<Login onAuth={(session) => setUser(session.user)} />} />
+        <Route path="*" element={<Navigate to="/login" replace state={{ from: location }} />} />
+      </Routes>
+    )
   }
 
   function logout() {
