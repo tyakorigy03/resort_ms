@@ -33,29 +33,9 @@ import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
 import { api } from '../api'
 import { formatDate } from '../lib/format'
+import { StatusChip } from '../lib/status'
 
 const STATUSES = ['booked', 'checked_in', 'checked_out', 'no_show', 'cancelled']
-
-export function statusColor(status) {
-  switch (status) {
-    case 'booked':
-      return 'primary'
-    case 'checked_in':
-      return 'success'
-    case 'checked_out':
-      return 'default'
-    case 'no_show':
-      return 'error'
-    case 'cancelled':
-      return 'default'
-    default:
-      return 'default'
-  }
-}
-
-export function StatusChip({ status }) {
-  return <Chip label={status.replace('_', ' ')} color={statusColor(status)} size="small" />
-}
 
 function NewReservationDialog({ open, onClose, onCreated }) {
   const [roomTypes, setRoomTypes] = useState([])

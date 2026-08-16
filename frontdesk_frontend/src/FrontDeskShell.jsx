@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   AppBar,
   Avatar,
@@ -24,7 +23,6 @@ export default function FrontDeskShell({ user, onLogout, children }) {
   const [clock, setClock] = useState(new Date())
   const { toggleMode } = useThemeMode()
   const theme = useTheme()
-  const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000)
