@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Box,
   Card,
@@ -44,7 +44,7 @@ function ReservationsView() {
   const [status, setStatus] = useState('')
   const [checkInDate, setCheckInDate] = useState('')
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true)
     try {
       setRows(
@@ -59,13 +59,12 @@ function ReservationsView() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, status, checkInDate])
 
   useEffect(() => {
     const timer = setTimeout(refresh, search ? 300 : 0)
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status, checkInDate])
+  }, [refresh, search])
 
   return (
     <Card>

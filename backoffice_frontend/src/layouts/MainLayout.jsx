@@ -48,6 +48,7 @@ import SellIcon from '@mui/icons-material/Sell'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import BadgeIcon from '@mui/icons-material/Badge'
 import ChecklistRtlIcon from '@mui/icons-material/ChecklistRtl'
+import EventNoteIcon from '@mui/icons-material/EventNote'
 import GroupIcon from '@mui/icons-material/Group'
 import EngineeringIcon from '@mui/icons-material/Engineering'
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
@@ -139,6 +140,7 @@ const navConfig = [
       { label: 'Rooms', icon: <MeetingRoomIcon />, path: '/rooms/rooms' },
       { label: 'Room Types', icon: <KingBedIcon />, path: '/rooms/room-types' },
       { label: 'Rate Plans', icon: <SellIcon />, path: '/rooms/rate-plans' },
+      { label: 'Reservations', icon: <EventNoteIcon />, path: '/rooms/reservations' },
     ],
   },
   {

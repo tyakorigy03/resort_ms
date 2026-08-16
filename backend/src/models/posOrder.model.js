@@ -567,6 +567,13 @@ async function checkout(orderId, { paymentMethod, paymentReceived, discount, tip
       )
     }
     if (paymentMethod === 'room_charge') {
+      const [folioRows] = await conn.query(
+        `SELECT id, status FROM folios WHERE id = ? FOR UPDATE`,
+        [Number(folioId)],
+      )
+      if (!folioRows.length || folioRows[0].status !== 'open') {
+        throw httpError('Folio is not open', 400)
+      }
       await conn.query(
         `INSERT INTO folio_line_items (folio_id, type, description, amount, source_order_id, staff_id)
          VALUES (?, 'pos_charge', ?, ?, ?, ?)`,

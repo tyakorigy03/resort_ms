@@ -3,17 +3,23 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
+import SearchIcon from '@mui/icons-material/Search'
 import { api } from '../api'
 import { money } from '../format'
 
@@ -27,6 +33,11 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
+  const [folioSearch, setFolioSearch] = useState('')
+  const [folioResults, setFolioResults] = useState(null)
+  const [folioSearchError, setFolioSearchError] = useState(null)
+  const [folio, setFolio] = useState(null)
+
   useEffect(() => {
     if (open) {
       setError(null)
@@ -35,6 +46,10 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
       setDiscount('')
       setTip('')
       setReceived('')
+      setFolio(null)
+      setFolioResults(null)
+      setFolioSearchError(null)
+      setFolioSearch('')
     }
   }, [open])
 
@@ -45,16 +60,36 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
   const tendered = Number(received) || 0
   const change = Math.round((tendered - total) * 100) / 100
 
+  async function searchFolios() {
+    const query = folioSearch.trim()
+    if (!query) return
+    setFolioSearchError(null)
+    setFolio(null)
+    setFolioResults(null)
+    try {
+      const isRoom = /^[0-9]+$/.test(query)
+      const result = await api.folioSearch(
+        isRoom ? { roomNumber: query } : { guestName: query },
+      )
+      setFolioResults(result)
+    } catch (err) {
+      setFolioSearchError(err.message)
+      setFolioResults([])
+    }
+  }
+
   async function pay() {
     if (busy) return
+    if (method === 'room' && !folio) return
     setBusy(true)
     setError(null)
     try {
       const paid = await api.checkout(order.id, {
         paymentMethod: method,
-        paymentReceived: method === 'cash' ? tendered : total,
+        paymentReceived: method === 'cash' ? tendered : method === 'room' ? total : total,
         discount: disc,
         tip: tipN,
+        folioId: method === 'room' ? folio.id : undefined,
       })
       onPaid(paid)
     } catch (err) {
@@ -63,6 +98,9 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
       setBusy(false)
     }
   }
+
+  const payDisabled =
+    busy || (method === 'cash' && tendered < total) || (method === 'room' && !folio)
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -123,6 +161,9 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
           <ToggleButton value="card" sx={{ textTransform: 'none', fontWeight: 600 }}>
             Card
           </ToggleButton>
+          <ToggleButton value="room" sx={{ textTransform: 'none', fontWeight: 600 }}>
+            Charge to room
+          </ToggleButton>
         </ToggleButtonGroup>
 
         {method === 'cash' && (
@@ -162,6 +203,70 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
           </Box>
         )}
 
+        {method === 'room' && (
+          <Box sx={{ mt: 1 }}>
+            {folio ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Chip
+                  label={`${folio.guestName} · Room ${folio.roomNumber || '—'} · ${money(folio.balance)}`}
+                  color="success"
+                  size="small"
+                />
+                <Button size="small" onClick={() => setFolio(null)}>
+                  Change
+                </Button>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <TextField
+                    label="Room number or guest name"
+                    placeholder="e.g. 105"
+                    size="small"
+                    fullWidth
+                    value={folioSearch}
+                    onChange={(e) => setFolioSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchFolios()}
+                    autoFocus
+                  />
+                  <Button
+                    variant="outlined"
+                    onClick={searchFolios}
+                    disabled={!folioSearch.trim()}
+                    startIcon={<SearchIcon />}
+                  >
+                    Search
+                  </Button>
+                </Box>
+                {folioSearchError && (
+                  <Alert severity="error" sx={{ mt: 1, fontSize: '0.85rem', py: 0.25 }}>
+                    {folioSearchError}
+                  </Alert>
+                )}
+                {folioResults && folioResults.length === 0 && !folioSearchError && (
+                  <Alert severity="warning" sx={{ mt: 1, fontSize: '0.85rem', py: 0.25 }}>
+                    No matching open folio. Check the room number or guest name.
+                  </Alert>
+                )}
+                {folioResults && folioResults.length > 0 && (
+                  <List dense sx={{ mt: 0.5, maxHeight: 220, overflow: 'auto' }}>
+                    {folioResults.map((f) => (
+                      <ListItem key={f.id} disablePadding>
+                        <ListItemButton onClick={() => setFolio(f)}>
+                          <ListItemText
+                            primary={f.guestName}
+                            secondary={`Room ${f.roomNumber || '—'} · ${money(f.balance)}`}
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </>
+            )}
+          </Box>
+        )}
+
         <DialogActions sx={{ px: 0 }}>
           <Button onClick={onClose} disabled={busy}>
             Cancel
@@ -170,7 +275,7 @@ export default function CheckoutDialog({ open, order, onClose, onPaid }) {
             variant="contained"
             color="success"
             onClick={pay}
-            disabled={busy || (method === 'cash' && tendered < total)}
+            disabled={payDisabled}
           >
             {busy ? 'Processing…' : `Pay - $${money(total)}`}
           </Button>

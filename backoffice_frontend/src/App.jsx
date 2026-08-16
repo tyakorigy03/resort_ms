@@ -29,6 +29,7 @@ import Customers from './pages/customers/customers'
 import Rooms from './pages/rooms/rooms'
 import RoomTypes from './pages/rooms/roomTypes'
 import RatePlans from './pages/rooms/ratePlans'
+import ReservationsView from './pages/rooms/reservations'
 import RoomStatus from './pages/housekeeping/roomStatus'
 import HousekeepingTasks from './pages/housekeeping/tasks'
 import Staff from './pages/staff/staff'
@@ -75,6 +76,7 @@ function App() {
             <Route path="/rooms/rooms" element={<Rooms />} />
             <Route path="/rooms/room-types" element={<RoomTypes />} />
             <Route path="/rooms/rate-plans" element={<RatePlans />} />
+            <Route path="/rooms/reservations" element={<ReservationsView />} />
             <Route path="/housekeeping/room-status" element={<RoomStatus />} />
             <Route path="/housekeeping/tasks" element={<HousekeepingTasks />} />
             <Route path="/staff" element={<Staff />} />
