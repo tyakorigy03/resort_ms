@@ -20,7 +20,7 @@ import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering'
 import { api } from '../api'
-import { formatDate } from '../lib/format'
+import { formatDate, formatMoney } from '../lib/format'
 
 function StatCard({ icon, label, value, color }) {
   return (
