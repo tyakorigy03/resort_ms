@@ -17,9 +17,11 @@ import LightModeIcon from '@mui/icons-material/LightMode'
 import LockIcon from '@mui/icons-material/Lock'
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom'
 import { useThemeMode } from './ThemeModeProvider'
+import { useAuth } from './AuthProvider'
 import NavButton from './components/NavButton'
 
-export default function FrontDeskShell({ user, onLogout, children }) {
+export default function FrontDeskShell({ children }) {
+  const { user, logout } = useAuth()
   const [clock, setClock] = useState(new Date())
   const { toggleMode } = useThemeMode()
   const theme = useTheme()
@@ -62,7 +64,7 @@ export default function FrontDeskShell({ user, onLogout, children }) {
           >
             {theme.palette.mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
           </IconButton>
-          <IconButton color="inherit" size="small" onClick={onLogout} title="Sign out">
+          <IconButton color="inherit" size="small" onClick={logout} title="Sign out">
             <LockIcon fontSize="small" />
           </IconButton>
         </Toolbar>

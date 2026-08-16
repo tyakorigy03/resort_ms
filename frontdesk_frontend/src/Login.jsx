@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Alert, Box, Button, Card, CardContent, CircularProgress, TextField, Typography } from '@mui/material'
 import LoginIcon from '@mui/icons-material/Login'
 import HotelIcon from '@mui/icons-material/Hotel'
-import { api, saveSession } from './api'
+import { useAuth } from './AuthProvider'
 
-export default function Login({ onAuth }) {
+export default function Login() {
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -19,9 +20,7 @@ export default function Login({ onAuth }) {
     }
     setBusy(true)
     try {
-      const session = await api.login(email.trim(), password)
-      saveSession({ token: session.token, user: session.user })
-      onAuth(session.user)
+      await login(email.trim(), password)
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.')
       setPassword('')

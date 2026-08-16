@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
-import { getUser, clearSession } from './api'
+import { useAuth } from './AuthProvider'
 import Login from './Login'
 import FrontDeskShell from './FrontDeskShell'
 import Dashboard from './pages/Dashboard'
@@ -10,25 +9,20 @@ import ReservationDetail from './pages/ReservationDetail'
 import Folio from './pages/Folio'
 
 export default function App() {
-  const [user, setUser] = useState(getUser())
+  const { user } = useAuth()
   const location = useLocation()
 
   if (!user) {
     return (
       <Routes>
-        <Route path="/login" element={<Login onAuth={(session) => setUser(session.user)} />} />
+        <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: location }} />} />
       </Routes>
     )
   }
 
-  function logout() {
-    clearSession()
-    setUser(null)
-  }
-
   return (
-    <FrontDeskShell user={user} onLogout={logout}>
+    <FrontDeskShell>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/reservations" element={<Reservations />} />
