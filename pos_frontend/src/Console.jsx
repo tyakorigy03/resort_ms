@@ -7,7 +7,9 @@ import {
   Chip,
   CircularProgress,
   Collapse,
-  Divider,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   List,
   ListItem,
@@ -15,21 +17,22 @@ import {
   ListItemIcon,
   ListItemText,
   ListSubheader,
-  Menu,
-  MenuItem,
   Paper,
   Typography,
 } from '@mui/material'
 import { ThemeProvider } from '@mui/material/styles'
 import AddIcon from '@mui/icons-material/Add'
 import CallSplitIcon from '@mui/icons-material/CallSplit'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CloseIcon from '@mui/icons-material/Close'
+import DeliveryDiningIcon from '@mui/icons-material/DeliveryDining'
 import EditIcon from '@mui/icons-material/Edit'
 import ExpandLess from '@mui/icons-material/ExpandLess'
 import ExpandMore from '@mui/icons-material/ExpandMore'
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment'
-import MoreVertIcon from '@mui/icons-material/MoreVert'
+import PauseCircleOutlinedIcon from '@mui/icons-material/PauseCircleOutlined'
 import PersonIcon from '@mui/icons-material/Person'
+import RestaurantIcon from '@mui/icons-material/Restaurant'
 import StorefrontIcon from '@mui/icons-material/Storefront'
 import TableRestaurantIcon from '@mui/icons-material/TableRestaurant'
 import { api } from './api'
@@ -61,7 +64,6 @@ function Register() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [openOrders, setOpenOrders] = useState([])
   const [activeOrderId, setActiveOrderId] = useState(null)
   const [order, setOrder] = useState(null)
   const [items, setItems] = useState([])
@@ -72,7 +74,7 @@ function Register() {
   const [detailItem, setDetailItem] = useState(null)
   const [selectedLineId, setSelectedLineId] = useState(null)
   const [qtyInput, setQtyInput] = useState('')
-  const [editAnchor, setEditAnchor] = useState(null)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const [dialog, setDialog] = useState(null)
   const [receipt, setReceipt] = useState(null)
   const [error, setError] = useState(null)
@@ -85,21 +87,6 @@ function Register() {
       .then((list) => setItems(list.filter((i) => i.mainPrice !== null && i.mainPrice !== undefined)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [])
-
-  async function refreshOpenOrders() {
-    try {
-      const list = await api.posOrders({ status: 'open' })
-      setOpenOrders(list)
-      return list
-    } catch (err) {
-      setError(err.message)
-      return []
-    }
-  }
-
-  useEffect(() => {
-    refreshOpenOrders()
   }, [])
 
   useEffect(() => {
@@ -197,17 +184,6 @@ function Register() {
     }
   }
 
-  async function switchOrder(id) {
-    setActiveOrderId(id)
-    setActiveCourseId(null)
-    clearSelection()
-  }
-
-  function openEmptyRegister() {
-    setActiveOrderId(null)
-    navigate('/register', { replace: true, state: null })
-  }
-
   async function startTakeaway() {
     setBusy(true)
     setError(null)
@@ -230,6 +206,20 @@ function Register() {
     setError(null)
     try {
       const updated = await api.fireCourse(order.id, activeCourseId)
+      setOrder(updated)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleServe() {
+    if (!order || !activeCourseId) return
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await api.serveCourse(order.id, activeCourseId)
       setOrder(updated)
     } catch (err) {
       setError(err.message)
@@ -270,13 +260,11 @@ function Register() {
 
   async function handleOrderType(type) {
     if (!order) return
-    setEditAnchor(null)
     setBusy(true)
     setError(null)
     try {
       const updated = await api.updateOrder(order.id, { orderType: type })
       setOrder(updated)
-      refreshOpenOrders()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -292,7 +280,6 @@ function Register() {
       const orders = await api.splitCheck(order.id)
       setOrder(orders[0])
       setActiveCourseId(orders[0].courses[0]?.id)
-      refreshOpenOrders()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -402,7 +389,6 @@ function Register() {
     setActiveCourseId(null)
     clearSelection()
     refresh()
-    refreshOpenOrders()
   }
 
   function selectLine(line) {
@@ -448,26 +434,10 @@ function Register() {
     )
   }
 
-  const tabsBar = (
-    <Box sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.25 }}>
-      {openOrders.map((o) => (
-        <Chip
-          key={o.id}
-          label={o.id === order?.id ? `${o.orderNumber} · ${o.tableLabel || o.collectionCode || o.orderType}` : `${o.tableLabel || o.collectionCode || o.orderNumber}`}
-          color={o.id === order?.id ? 'primary' : 'default'}
-          variant={o.id === order?.id ? 'filled' : 'outlined'}
-          onClick={() => switchOrder(o.id)}
-        />
-      ))}
-      <Chip icon={<AddIcon />} label="New" variant="soft" onClick={openEmptyRegister} />
-    </Box>
-  )
-
   if (!order) {
     return (
       <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1.5 }}>
         {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
-        {tabsBar}
         <Box sx={{ flexGrow: 1, display: 'grid', placeItems: 'center' }}>
           <Paper variant="outlined" sx={{ p: 4, maxWidth: 420, textAlign: 'center' }}>
             <StorefrontIcon sx={{ fontSize: 56, color: 'text.secondary', mb: 1 }} />
@@ -496,33 +466,57 @@ function Register() {
     ? order.customerName
     : order.tableLabel
       ? `Table ${order.tableLabel}`
-      : order.collectionCode
-        ? `Code ${order.collectionCode}`
-        : order.orderType
+      : order.orderType
 
   const maxSeat = order.covers || 8
   const seatCount = Math.max(maxSeat, 1)
-  const fireDisabled = !activeCourse || Boolean(activeCourse.firedAt) || activeCourse.items.length === 0
+  const courseFired = Boolean(activeCourse?.firedAt)
+  const courseServed = activeCourse?.status === 'completed'
+  const courseActionDisabled = !activeCourse || activeCourse.items.length === 0 || (courseFired && courseServed)
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.5, gap: 1 }}>
       {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
 
-      {tabsBar}
-
-      <Menu anchorEl={editAnchor} open={Boolean(editAnchor)} onClose={() => setEditAnchor(null)}>
-        <MenuItem onClick={() => { setEditAnchor(null); setDialog('customer') }}>Assign customer</MenuItem>
-        <Divider />
-        {['dine_in', 'pickup', 'delivery'].map((type) => (
-          <MenuItem key={type} selected={order.orderType === type} onClick={() => handleOrderType(type)}>
-            {type === 'dine_in' ? 'Dine-in' : type === 'pickup' ? 'Pickup' : 'Delivery'}
-          </MenuItem>
-        ))}
-      </Menu>
-
       <Box sx={{ flexGrow: 1, minHeight: 0, display: 'flex', gap: 1 }}>
-        {/* Left: order ticket + keypad + actions */}
+        {/* Left: order card + ticket + keypad + actions */}
         <Paper variant="outlined" sx={{ width: 360, minWidth: 360, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <Box sx={{ px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body1" sx={{ fontWeight: 800, lineHeight: 1.1, textTransform: 'capitalize', minWidth: 0, fontSize: 13 }}>
+                {headerTitle}
+              </Typography>
+              <Box sx={{ flexGrow: 1 }} />
+              {order.covers ? <Chip size="small" label={`${order.covers} covers`} sx={{ height: 22, fontSize: 10.5 }} /> : null}
+              <Button variant="text" color="inherit" size="small" onClick={() => setActionsOpen(true)} sx={{ fontSize: 11, minHeight: 24, py: 0 }}>
+                Actions
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+              <Button
+                size="small"
+                color="inherit"
+                variant="soft"
+                disabled={busy}
+                startIcon={<PersonIcon />}
+                onClick={() => setDialog('customer')}
+                sx={{ flex: 1, textWrap: 'nowrap', fontSize: 11, minHeight: 26, py: 0.25 }}
+              >
+                Assign customer
+              </Button>
+              <Button
+                size="small"
+                variant="soft"
+                color={order.orderType === 'dine_in' ? 'primary' : 'inherit'}
+                disabled={busy}
+                startIcon={<RestaurantIcon />}
+                onClick={() => handleOrderType('dine_in')}
+                sx={{ flex: 1, textWrap: 'nowrap', fontSize: 11, minHeight: 26, py: 0.25 }}
+              >
+                Dine-in
+              </Button>
+            </Box>
+          </Box>
           <Box sx={{ flexGrow: 1, minHeight: 0, overflowY: 'auto' }}>
             <List disablePadding dense>
               {unassignedItems.length > 0 && (
@@ -544,18 +538,25 @@ function Register() {
 
               {order.courses.map((c) => {
                 const isActive = c.id === activeCourseId
-                const hint = c.firedAt ? 'sent to kitchen' : c.status === 'on_hold' ? 'on hold' : c.items.length ? `${c.items.length} items` : 'no items'
+                const itemsLabel = c.items.length ? `(${c.items.length} items)` : '(no items)'
                 return (
                   <Box key={c.id}>
-                    <ListItemButton onClick={() => { setActiveCourseId(c.id); clearSelection() }}>
-                      <ListItemIcon sx={{ minWidth: 28 }}>
+                    <ListItemButton
+                      onClick={() => { setActiveCourseId(c.id); clearSelection() }}
+                      sx={{
+                        py: 0.25,
+                        minHeight: 32,
+                        bgcolor: isActive ? 'primary.main' : 'transparent',
+                        color: isActive ? 'primary.contrastText' : 'text.primary',
+                        '&:hover': { bgcolor: isActive ? 'primary.main' : 'action.hover' },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 20 }}>
                         {isActive ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
                       </ListItemIcon>
                       <ListItemText
-                        primary={c.name}
-                        secondary={hint}
-                        primaryTypographyProps={{ variant: 'body2', fontWeight: 700 }}
-                        secondaryTypographyProps={{ variant: 'caption' }}
+                        primary={`${c.name} ${itemsLabel}`}
+                        primaryTypographyProps={{ variant: 'body2', fontWeight: 700, noWrap: true }}
                       />
                       <IconButton
                         size="small"
@@ -564,12 +565,13 @@ function Register() {
                           e.stopPropagation()
                           setActiveCourseId(c.id)
                         }}
+                        sx={{ color: isActive ? 'primary.contrastText' : undefined }}
                       >
                         <AddIcon fontSize="small" />
                       </IconButton>
                     </ListItemButton>
                     <Collapse in={isActive} timeout="auto" unmountOnExit>
-                      <List disablePadding dense>
+            <List disablePadding dense sx={{ '& .MuiListItem-root, & .MuiListItemButton-root': { minHeight: 28 } }}>
                         {c.items.map((line) => (
                           <OrderLine
                             key={line.id}
@@ -585,8 +587,8 @@ function Register() {
                 )
               })}
 
-              <ListItemButton onClick={handleAddCourse} disabled={busy}>
-                <ListItemIcon sx={{ minWidth: 28 }}>
+              <ListItemButton onClick={handleAddCourse} disabled={busy} sx={{ py: 0.25, minHeight: 32 }}>
+                <ListItemIcon sx={{ minWidth: 20 }}>
                   <AddIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText primary="Add course" primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }} />
@@ -609,14 +611,14 @@ function Register() {
             <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 0.75, alignItems: 'stretch' }}>
               <Keypad onKey={onKeypad} disabled={busy} />
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" onClick={(e) => setEditAnchor(e.currentTarget)}>
+                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" onClick={() => setActionsOpen(true)}>
                   Edit order
                 </Button>
                 <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" disabled={busy || !activeCourse} onClick={handleHold}>
                   {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
                 </Button>
-                <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
-                  Tables
+                <Button sx={{ flexGrow: 1 }} variant="contained" color="primary" startIcon={<TableRestaurantIcon />} onClick={() => navigate('/tables')}>
+                  Switch Table
                 </Button>
                 <Button sx={{ flexGrow: 1 }} variant="soft" color="inherit" disabled={busy} onClick={() => setDialog('checkout')}>
                   Credit card
@@ -626,33 +628,8 @@ function Register() {
           </Box>
         </Paper>
 
-        {/* Menu: current order header + category rail + seat target + items */}
+        {/* Menu: category rail + seat target + items */}
         <Paper variant="outlined" sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <Box sx={{ px: 1, py: 0.75, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="body1" sx={{ fontWeight: 800, lineHeight: 1.1, textTransform: 'capitalize' }}>
-                  {headerTitle}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.1, display: 'block' }}>
-                  {order.orderNumber} · {order.orderType}
-                </Typography>
-              </Box>
-              <Box sx={{ flexGrow: 1 }} />
-              {order.covers ? <Chip size="small" label={`${order.covers} covers`} /> : null}
-              <IconButton size="small" onClick={(e) => setEditAnchor(e.currentTarget)} title="Order options">
-                <MoreVertIcon fontSize="small" />
-              </IconButton>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-              {order.customerName && (
-                <Chip size="small" icon={<PersonIcon />} label={order.customerName} color="success" variant="soft" />
-              )}
-              <Button size="small" color="inherit" variant="soft" disabled={busy || !activeCourse} onClick={handleHold}>
-                {activeCourse?.status === 'on_hold' ? 'Resume' : 'On hold'}
-              </Button>
-            </Box>
-          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider', overflowX: 'auto', flexShrink: 0 }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', whiteSpace: 'nowrap' }}>
               Add to
@@ -699,6 +676,12 @@ function Register() {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
                 alignContent: 'start',
                 gap: 0.75,
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': { width: 6, height: 6 },
+                '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+                '&::-webkit-scrollbar-thumb': { bgcolor: 'transparent', borderRadius: 3 },
+                '&:hover::-webkit-scrollbar-thumb': { bgcolor: 'divider' },
+                '&::-webkit-scrollbar-thumb:hover': { bgcolor: 'text.secondary' },
               }}
             >
               {visibleItems.map((item) => (
@@ -738,13 +721,13 @@ function Register() {
           <Box sx={{ display: 'flex', gap: 1, p: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
             <Button
               variant="contained"
-              color="fire"
-              disabled={busy || fireDisabled}
-              onClick={handleFireCourse}
-              startIcon={<LocalFireDepartmentIcon />}
+              color={courseFired ? 'primary' : 'fire'}
+              disabled={busy || courseActionDisabled}
+              onClick={courseFired ? handleServe : handleFireCourse}
+              startIcon={courseFired ? <RestaurantIcon /> : <LocalFireDepartmentIcon />}
               sx={{ minWidth: 160, fontSize: 15, fontWeight: 700 }}
             >
-              {activeCourse?.firedAt ? 'Course sent' : 'Fire course'}
+              {courseFired ? (courseServed ? 'Served' : 'Serve') : 'Fire course'}
             </Button>
             <Button
               variant="contained"
@@ -768,6 +751,38 @@ function Register() {
           </Box>
         </Paper>
       </Box>
+
+      <Dialog open={actionsOpen} onClose={() => setActionsOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Order actions</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, pb: 2 }}>
+          <Button
+            fullWidth
+            variant="soft"
+            color="inherit"
+            disabled={busy || !activeCourse}
+            startIcon={<PauseCircleOutlinedIcon />}
+            onClick={() => { setActionsOpen(false); handleHold() }}
+          >
+            {activeCourse?.status === 'on_hold' ? 'Resume order' : 'On hold'}
+          </Button>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', mt: 0.5 }}>
+            Order type
+          </Typography>
+          {['dine_in', 'pickup', 'delivery'].map((type) => (
+            <Button
+              key={type}
+              fullWidth
+              variant="soft"
+              color={order.orderType === type ? 'primary' : 'inherit'}
+              disabled={busy}
+              startIcon={type === 'dine_in' ? <RestaurantIcon /> : type === 'pickup' ? <StorefrontIcon /> : <DeliveryDiningIcon />}
+              onClick={() => { setActionsOpen(false); handleOrderType(type) }}
+            >
+              {type === 'dine_in' ? 'Dine-in' : type === 'pickup' ? 'Pickup' : 'Delivery'}
+            </Button>
+          ))}
+        </DialogContent>
+      </Dialog>
 
       <CheckoutDialog
         open={dialog === 'checkout'}
@@ -825,8 +840,28 @@ function Keypad({ onKey, disabled }) {
   )
 }
 
+// Kitchen status icon for a ticket line. The kitchen only knows about a line
+// once it has been fired (firedAt set); before that it has no icon.
+const iconSx = { fontSize: 14, flexShrink: 0 }
+function statusIcon(line) {
+  if (!line.firedAt) return null
+  switch (line.kdsStatus) {
+    case 'completed':
+      return <CheckCircleIcon titleAccess="Served" sx={{ ...iconSx, color: 'success.main' }} />
+    case 'ready':
+      return <RestaurantIcon titleAccess="Ready to serve" sx={{ ...iconSx, color: 'primary.main' }} />
+    case 'on_hold':
+      return <PauseCircleOutlinedIcon titleAccess="On hold" sx={{ ...iconSx, color: 'text.secondary' }} />
+    case 'cancelled':
+      return null
+    default:
+      return <LocalFireDepartmentIcon titleAccess="In the kitchen" sx={{ ...iconSx, color: 'fire.main' }} />
+  }
+}
+
 function OrderLine({ line, onSelect, onEdit, selected }) {
   const cancelled = line.kdsStatus === 'cancelled'
+  const status = statusIcon(line)
   return (
     <ListItem
       dense
@@ -834,39 +869,51 @@ function OrderLine({ line, onSelect, onEdit, selected }) {
       sx={{
         pl: 2,
         pr: 1,
-        py: 0.25,
+        py: 0,
         bgcolor: selected ? 'action.selected' : 'transparent',
         '&:hover': { bgcolor: selected ? 'action.selected' : 'action.hover' },
       }}
-      secondaryAction={
-        <IconButton size="small" onClick={onEdit} title="Edit item" sx={{ mr: 0.5 }}>
-          <EditIcon fontSize="small" />
-        </IconButton>
-      }
     >
       <ListItemText
-        primary={line.itemName}
-        secondary={
-          <>
-            {line.seatNumber ? `Seat ${line.seatNumber} · ` : ''}
-            {line.kdsStatus === 'cancelled' ? 'refunded' : line.kdsStatus}
-          </>
+        primary={
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, overflow: 'hidden' }}>
+              <Box
+                component="span"
+                sx={{
+                  flex: '0 1 auto',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  textDecoration: cancelled ? 'line-through' : 'none',
+                  opacity: cancelled ? 0.6 : 1,
+                }}
+              >
+                {line.itemName}
+              </Box>
+              {status}
+            <IconButton
+              size="small"
+              title="Edit item"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+              sx={{ p: 0, minWidth: 0, color: 'text.secondary', flexShrink: 0 }}
+            >
+              <EditIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Box>
         }
-        primaryTypographyProps={{
-          variant: 'body2',
-          fontWeight: 600,
-          textDecoration: cancelled ? 'line-through' : 'none',
-          opacity: cancelled ? 0.6 : 1,
-          noWrap: true,
-        }}
-        secondaryTypographyProps={{ variant: 'caption' }}
         onClick={onSelect}
-        sx={{ cursor: 'pointer', mr: 1, minWidth: 0 }}
+        sx={{ cursor: 'pointer', mr: 1, minWidth: 0, my: 0, py: 0 }}
       />
-      <Typography variant="body2" sx={{ fontWeight: 700, opacity: cancelled ? 0.6 : 1, minWidth: 34, textAlign: 'right' }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, opacity: cancelled ? 0.6 : 1, minWidth: 28, textAlign: 'right' }}>
         ×{line.quantity}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 700, opacity: cancelled ? 0.6 : 1, minWidth: 64, textAlign: 'right' }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, opacity: cancelled ? 0.6 : 1, minWidth: 48, textAlign: 'right' }}>
         {money(line.lineTotal)}
       </Typography>
     </ListItem>

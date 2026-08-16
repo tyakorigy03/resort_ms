@@ -1,8 +1,20 @@
 const express = require('express')
-const { clockModel, salePeriodModel, staffModel } = require('../models')
+const { clockModel, salePeriodModel, staffModel, deviceModel } = require('../models')
 const { verifyDevice } = require('../middlewares/auth')
 
 const router = express.Router()
+
+// Load a clock event scoped to this device's outlet (events clocked on another
+// outlet's device are invisible).
+async function loadShift(id, outletId) {
+  const event = await clockModel.findById(id)
+  if (!event) return null
+  if (event.deviceId) {
+    const device = await deviceModel.findById(event.deviceId)
+    if (!device || device.outletId !== outletId) return null
+  }
+  return event
+}
 
 // Staff currently clocked in for this device's outlet.
 router.get('/active', verifyDevice, async (req, res, next) => {
@@ -57,14 +69,40 @@ router.post('/clock-in', verifyDevice, async (req, res, next) => {
   }
 })
 
-// Clock out by clock event id. Optional closingCash counts the till; the
-// response carries the reconciliation (expected vs actual variance).
+// Shift summary (till reconciliation + sales + elapsed time) for the
+// clock-out flow. Does not close the shift.
+router.get('/:id', verifyDevice, async (req, res, next) => {
+  try {
+    const event = await loadShift(req.params.id, req.device.outletId)
+    if (!event) return res.status(404).json({ message: 'Shift not found' })
+    res.json(await clockModel.summaryFor(event))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Clock out by clock event id. Requires the closing cash count and the staff
+// member's PIN as a sign-off; the response carries the reconciliation
+// (expected vs actual variance).
 router.post('/:id/clock-out', verifyDevice, async (req, res, next) => {
   try {
+    const event = await loadShift(req.params.id, req.device.outletId)
+    if (!event) return res.status(404).json({ message: 'Shift not found' })
+
+    const { pin, closingCash } = req.body || {}
+    const staff = await staffModel.findByIdWithPin(event.staffId)
+    if (!staff || !staff.is_active) return res.status(403).json({ message: 'Staff member not found or deactivated' })
+    const valid = await staffModel.verifyPin(staff, pin)
+    if (!valid) return res.status(401).json({ message: 'Invalid PIN' })
+
+    if (closingCash === undefined || closingCash === null || Number(closingCash) < 0) {
+      return res.status(400).json({ message: 'Closing cash count is required' })
+    }
+
     res.json(
       await clockModel.clockOut(req.params.id, {
         notes: req.body?.notes,
-        closingCash: req.body?.closingCash,
+        closingCash: Number(closingCash),
       }),
     )
   } catch (error) {

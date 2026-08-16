@@ -1,8 +1,18 @@
 const KEY = 'pos_my_shift'
+const EVENT = 'pos-shift-changed'
+
+function notify() {
+  try {
+    window.dispatchEvent(new Event(EVENT))
+  } catch {
+    /* ignore */
+  }
+}
 
 export function saveMyShift(event) {
   try {
     localStorage.setItem(KEY, JSON.stringify(event))
+    notify()
   } catch {
     /* ignore */
   }
@@ -19,6 +29,7 @@ export function loadMyShift() {
 export function clearMyShift() {
   try {
     localStorage.removeItem(KEY)
+    notify()
   } catch {
     /* ignore */
   }

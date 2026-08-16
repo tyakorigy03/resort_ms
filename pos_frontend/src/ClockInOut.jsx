@@ -12,7 +12,6 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
-import ArrowLeftIcon from '@mui/icons-material/ArrowLeft'
 import LockIcon from '@mui/icons-material/Lock'
 import PersonIcon from '@mui/icons-material/Person'
 import SearchIcon from '@mui/icons-material/Search'
@@ -21,7 +20,7 @@ import StaffClockModal from './components/StaffClockModal'
 import SalePeriodDialog from './components/SalePeriodDialog'
 import undrawTime from './assets/undraw_time-management_4ss6.svg'
 
-export default function ClockInOut({ onBack, onClockedIn }) {
+export default function ClockInOut({ device, onClockedIn }) {
   const [staff, setStaff] = useState([])
   const [period, setPeriod] = useState(null)
   const [shifts, setShifts] = useState([])
@@ -63,14 +62,6 @@ export default function ClockInOut({ onBack, onClockedIn }) {
     <Box sx={{ height: '100svh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <AppBar position="static" elevation={0}>
         <Toolbar variant="dense" sx={{ position: 'relative', py: 0.5 }}>
-          <Button
-            color="inherit"
-            startIcon={<ArrowLeftIcon />}
-            onClick={onBack}
-            sx={{ position: 'absolute', left: 8, textTransform: 'none', fontWeight: 600 }}
-          >
-            Back
-          </Button>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, width: '100%', textAlign: 'center' }}>
             Clock in/out
           </Typography>
@@ -83,7 +74,7 @@ export default function ClockInOut({ onBack, onClockedIn }) {
           <Typography variant="h4">
               Clock in/out
             </Typography>
-          <Typography variant="caption2" color="text.secondary" sx={{ mb:2 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 2 }}>
               Tap a name to clock in or out. A manager opens/closes the sales period.
             </Typography>
 
@@ -193,6 +184,7 @@ export default function ClockInOut({ onBack, onClockedIn }) {
         staff={selected}
         period={period}
         shifts={shifts}
+        device={device}
         onClose={() => setSelected(null)}
         onChanged={load}
         onClockedIn={() => {

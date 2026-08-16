@@ -19,16 +19,21 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { api } from '../api'
-import { saveMyShift, clearMyShiftIf } from '../myShift'
+import { saveMyShift } from '../myShift'
 import KeyPad from './KeyPad'
+import ShiftClockOut from './ShiftClockOut'
 
-export default function ClockInDialog({ open, onClose, onChanged, initialStaffId, initialStep }) {
+export default function ClockInDialog({ open, onClose, onChanged, device, initialStaffId, initialStep }) {
   const [staffList, setStaffList] = useState([])
   const [shifts, setShifts] = useState([])
   const [step, setStep] = useState(initialStep || 'list')
   const [selected, setSelected] = useState(null)
   const [pin, setPin] = useState('')
   const [qrCode, setQrCode] = useState('')
+  const [openingCash, setOpeningCash] = useState('')
+  const [needsCount, setNeedsCount] = useState(false)
+  const [pendingEvent, setPendingEvent] = useState(null)
+  const [clockOutShift, setClockOutShift] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -38,8 +43,19 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
     setSelected(null)
     setPin('')
     setQrCode('')
+    setOpeningCash('')
+    setClockOutShift(null)
+    setPendingEvent(null)
     load()
-  }, [open, initialStaffId, initialStep])
+    if (device?.id) {
+      api
+        .drawerToday(device.id)
+        .then((res) => setNeedsCount(!res.hasCountToday))
+        .catch(() => setNeedsCount(false))
+    } else {
+      setNeedsCount(false)
+    }
+  }, [open, initialStaffId, initialStep, device])
 
   async function load() {
     setError(null)
@@ -66,6 +82,7 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
     setSelected(staff)
     setPin('')
     setQrCode('')
+    setOpeningCash('')
     setStep(staff.hasPin ? 'pin' : 'qrcode')
     setError(null)
   }
@@ -76,8 +93,14 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
     setError(null)
     try {
       const body = selected.hasPin ? { staffId: selected.id, pin } : { qrCode: qrCode.trim() }
+      body.openingCash = openingCash.trim() === '' ? 0 : Number(openingCash)
       const event = await api.clockIn(body)
       saveMyShift(event)
+      if (needsCount) {
+        setPendingEvent(event)
+        setStep('opening')
+        return
+      }
       onChanged(event)
       reset()
     } catch (err) {
@@ -88,15 +111,19 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
     }
   }
 
-  async function doClockOut(eventId) {
+  async function confirmOpening() {
     if (busy) return
     setBusy(true)
     setError(null)
     try {
-      await api.clockOut(eventId)
-      clearMyShiftIf(eventId)
-      onChanged()
-      await load()
+      if (device?.id) {
+        await api.drawerConfirm(device.id, {
+          openingCount: Number(openingCash) || 0,
+          staffId: selected?.id || null,
+        })
+      }
+      onChanged(pendingEvent)
+      reset()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -115,12 +142,13 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
     setSelected(null)
     setPin('')
     setQrCode('')
+    setOpeningCash('')
   }
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {step === 'list' ? 'Staff clock in / out' : `Clock in: ${selected?.name}`}
+        {step === 'list' ? 'Staff clock in / out' : step === 'opening' ? 'Opening cash count' : `Clock in: ${selected?.name}`}
         <IconButton onClick={onClose} size="small">
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -140,7 +168,7 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
                   <ListItem
                     key={s.id}
                     secondaryAction={
-                      <Button color="warning" size="small" disabled={busy} onClick={() => doClockOut(s.id)}>
+                      <Button color="warning" size="small" disabled={busy} onClick={() => setClockOutShift(s)}>
                         Clock out
                       </Button>
                     }
@@ -187,6 +215,39 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
               ))}
             </List>
           </>
+        )}
+
+        {step === 'opening' && (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              This register has no opening cash count for today. Enter the cash in the drawer to continue.
+            </Typography>
+            <TextField
+              label="Opening cash count"
+              placeholder="Cash in the drawer at start"
+              type="number"
+              inputProps={{ min: 0, step: '0.01' }}
+              size="small"
+              fullWidth
+              autoFocus
+              value={openingCash}
+              onChange={(e) => {
+                setError(null)
+                setOpeningCash(e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmOpening()
+              }}
+            />
+            <DialogActions sx={{ px: 0, pb: 0 }}>
+              <Button onClick={reset} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={confirmOpening} disabled={busy}>
+                {busy ? '…' : 'Confirm'}
+              </Button>
+            </DialogActions>
+          </Box>
         )}
 
         {step === 'pin' && (
@@ -250,6 +311,17 @@ export default function ClockInDialog({ open, onClose, onChanged, initialStaffId
           </Box>
         )}
       </DialogContent>
+
+      <ShiftClockOut
+        open={Boolean(clockOutShift)}
+        shift={clockOutShift}
+        onClose={() => setClockOutShift(null)}
+        onDone={() => {
+          setClockOutShift(null)
+          onChanged()
+          reset()
+        }}
+      />
     </Dialog>
   )
 }

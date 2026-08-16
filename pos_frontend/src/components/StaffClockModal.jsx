@@ -14,28 +14,28 @@ import {
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import { api } from '../api'
-import { money } from '../format'
-import { saveMyShift, clearMyShiftIf } from '../myShift'
+import { saveMyShift } from '../myShift'
 import KeyPad from './KeyPad'
+import ShiftClockOut from './ShiftClockOut'
 
 const fmtTime = (iso) =>
   new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 // Direction when a staff card is tapped on the Clock in/out page:
-// - Already on shift  -> clock OUT (works even if the period is closed).
+// - Already on shift  -> clock OUT (summary -> drawer -> PIN, via ShiftClockOut).
 // - Sale period open  -> clock the tapped staff IN (their own PIN or QR).
 // Opening a closed sale period is handled by the dedicated SalePeriodDialog,
 // so this modal never sees a closed period.
 //
-// Cash drawer: the till float is entered (optional, defaults to 0) at clock-in
-// and the closing count is entered at clock-out, after which the expected-vs-
-// counted variance is shown before the shift is finished.
-export default function StaffClockModal({ open, staff, period, shifts, onClose, onChanged, onClockedIn }) {
+// Cash drawer: the opening float is asked as part of clock-in only when this
+// register has no confirmed count for today, and is written straight to the
+// drawer. The closing count is part of the clock-out flow.
+export default function StaffClockModal({ open, staff, period, shifts, device, onClose, onChanged, onClockedIn }) {
   const [staffPin, setStaffPin] = useState('')
   const [staffQr, setStaffQr] = useState('')
   const [openingCash, setOpeningCash] = useState('')
-  const [closingCash, setClosingCash] = useState('')
-  const [cashResult, setCashResult] = useState(null)
+  const [needsCount, setNeedsCount] = useState(false)
+  const [clockOutShift, setClockOutShift] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -44,36 +44,20 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
     setStaffPin('')
     setStaffQr('')
     setOpeningCash('')
-    setClosingCash('')
-    setCashResult(null)
     setError(null)
-  }, [open, staff])
+    setClockOutShift(null)
+    if (device?.id) {
+      api
+        .drawerToday(device.id)
+        .then((res) => setNeedsCount(!res.hasCountToday))
+        .catch(() => setNeedsCount(false))
+    } else {
+      setNeedsCount(false)
+    }
+  }, [open, staff, device])
 
   const shift = open ? shifts?.find((s) => s.staffId === staff?.id) : null
   const title = shift ? `Clock out: ${staff?.name}` : `Clock in: ${staff?.name}`
-
-  async function doClockOut() {
-    if (busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      const closing = closingCash.trim() === '' ? null : Number(closingCash)
-      const res = await api.clockOut(shift.id, { closingCash: closing })
-      clearMyShiftIf(shift.id)
-      setCashResult(res.cash)
-      onChanged()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  function finishClockOut() {
-    setClosingCash('')
-    setCashResult(null)
-    onClose()
-  }
 
   function onStaffPinKey(key) {
     setError(null)
@@ -88,6 +72,12 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
       const body = staff.hasPin ? { staffId: staff.id, pin: staffPin } : { qrCode: staffQr.trim() }
       body.openingCash = openingCash.trim() === '' ? 0 : Number(openingCash)
       const shift = await api.clockIn(body)
+      if (device?.id && needsCount) {
+        await api.drawerConfirm(device.id, {
+          openingCount: Number(openingCash) || 0,
+          staffId: staff.id,
+        })
+      }
       saveMyShift(shift)
       onClockedIn(shift)
     } catch (err) {
@@ -99,9 +89,6 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
   }
 
   const canClockIn = staff?.hasPin ? staffPin.length >= 4 && !busy : Boolean(staffQr.trim()) && !busy
-  const closingNum = closingCash.trim() === '' ? null : Number(closingCash)
-  const canClockOut = !busy && (closingCash.trim() === '' || (Number.isFinite(closingNum) && closingNum >= 0))
-  const variance = cashResult?.variance
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -118,61 +105,25 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
           </Alert>
         )}
 
-        {shift && cashResult && (
-          <Box>
-            <Alert severity="success" sx={{ mb: 1.5, fontSize: '0.85rem', py: 0.25 }}>
-              {staff?.name} clocked out. Shift finished.
-            </Alert>
-            <Row label="Opening float" value={money(cashResult.opening)} />
-            <Row label="Expected in till" value={money(cashResult.expected)} />
-            <Row label="Counted" value={money(cashResult.closing)} />
-            <Row
-              label="Variance"
-              value={
-                <Typography variant="body2" sx={{ fontWeight: 700, color: variance === 0 ? 'success.main' : variance > 0 ? 'warning.main' : 'error.main' }}>
-                  {variance == null ? 'Not counted' : money(variance)}
-                </Typography>
-              }
-            />
-            <DialogActions sx={{ px: 0, pb: 0 }}>
-              <Button variant="contained" onClick={finishClockOut} disabled={busy}>
-                Done
-              </Button>
-            </DialogActions>
-          </Box>
-        )}
-
-        {shift && !cashResult && (
+        {shift ? (
           <Box>
             <Alert severity="info" sx={{ mb: 2, fontSize: '0.85rem', py: 0.25 }}>
               {staff?.name} clocked in at {fmtTime(shift.clockedInAt)}
               {shift.deviceName ? ` on ${shift.deviceName}` : ''}.
             </Alert>
-            <TextField
-              label="Closing cash count"
-              placeholder="Leave blank if not counted"
-              type="number"
-              inputProps={{ min: 0, step: '0.01' }}
-              size="small"
-              fullWidth
-              value={closingCash}
-              onChange={(e) => {
-                setError(null)
-                setClosingCash(e.target.value)
-              }}
-            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Clocking out shows your shift summary, asks you to confirm the cash drawer and sign off with your PIN.
+            </Typography>
             <DialogActions sx={{ px: 0, pb: 0 }}>
               <Button onClick={onClose} disabled={busy}>
                 Cancel
               </Button>
-              <Button variant="contained" color="warning" onClick={doClockOut} disabled={!canClockOut}>
-                {busy ? '…' : 'Count & clock out'}
+              <Button variant="contained" color="warning" onClick={() => setClockOutShift(shift)} disabled={busy}>
+                Clock out
               </Button>
             </DialogActions>
           </Box>
-        )}
-
-        {!shift && (
+        ) : (
           <Box>
             {period && (
               <Chip
@@ -224,20 +175,27 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
                 />
               </Box>
             )}
-            <TextField
-              label="Opening float (optional)"
-              placeholder="Defaults to 0"
-              type="number"
-              inputProps={{ min: 0, step: '0.01' }}
-              size="small"
-              fullWidth
-              value={openingCash}
-              onChange={(e) => {
-                setError(null)
-                setOpeningCash(e.target.value)
-              }}
-              sx={{ mt: 1.5 }}
-            />
+            {needsCount ? (
+              <TextField
+                label="Opening cash count"
+                placeholder="Cash in the drawer at start"
+                type="number"
+                inputProps={{ min: 0, step: '0.01' }}
+                size="small"
+                fullWidth
+                value={openingCash}
+                onChange={(e) => {
+                  setError(null)
+                  setOpeningCash(e.target.value)
+                }}
+                sx={{ mt: 1.5 }}
+                helperText="Counted for this register's drawer."
+              />
+            ) : (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                Opening drawer already counted today.
+              </Typography>
+            )}
             <DialogActions sx={{ px: 0, pb: 0 }}>
               <Button onClick={onClose} disabled={busy}>
                 Cancel
@@ -249,17 +207,17 @@ export default function StaffClockModal({ open, staff, period, shifts, onClose, 
           </Box>
         )}
       </DialogContent>
-    </Dialog>
-  )
-}
 
-function Row({ label, value }) {
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: '1px dashed', borderColor: 'divider' }}>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-      {value}
-    </Box>
+      <ShiftClockOut
+        open={Boolean(clockOutShift)}
+        shift={clockOutShift}
+        onClose={() => setClockOutShift(null)}
+        onDone={() => {
+          setClockOutShift(null)
+          onChanged()
+          onClose()
+        }}
+      />
+    </Dialog>
   )
 }

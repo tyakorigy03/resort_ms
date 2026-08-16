@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   AppBar,
@@ -28,7 +28,6 @@ import { saveMyShift, loadMyShift, clearMyShift } from './myShift'
 import { useThemeMode } from './ThemeModeProvider'
 import ClockInDialog from './components/ClockInDialog'
 import SalePeriodDialog from './components/SalePeriodDialog'
-import CashDrawerGate from './components/CashDrawerGate'
 
 const ShellContext = createContext(null)
 
@@ -51,34 +50,17 @@ export default function PosShell({ device, onLogout, children }) {
   const [myShift, setMyShift] = useState(loadMyShift)
   const [clock, setClock] = useState(new Date())
   const [dialog, setDialog] = useState(null)
-  const [drawerGate, setDrawerGate] = useState({ checking: false, needsCount: false })
   const navigate = useNavigate()
   const location = useLocation()
   const { mode, toggleMode } = useThemeMode()
 
-  // Spec 3.2: when the register has no confirmed opening count for today and a
-  // shift is active, the cash-drawer gate must be confirmed before the app is
-  // usable. The register device itself is the cash drawer.
+  // After a clock-out the main app becomes locked again: drop the operator at
+  // the clock-in page.
+  const prevShiftRef = useRef(myShift)
   useEffect(() => {
-    if (!device?.id) return
-    let cancelled = false
-    setDrawerGate((g) => ({ ...g, checking: true }))
-    api
-      .drawerToday(device.id)
-      .then((res) => {
-        if (!cancelled) setDrawerGate({ checking: false, needsCount: !res.hasCountToday })
-      })
-      .catch(() => {
-        if (!cancelled) setDrawerGate({ checking: false, needsCount: false })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [device?.id])
-
-  useEffect(() => {
-    if (!myShift) setDrawerGate((g) => ({ ...g, needsCount: false }))
-  }, [myShift])
+    if (prevShiftRef.current && !myShift) navigate('/clock')
+    prevShiftRef.current = myShift
+  }, [myShift, navigate])
 
   async function refresh() {
     try {
@@ -211,6 +193,7 @@ export default function PosShell({ device, onLogout, children }) {
         <ClockInDialog
           open={dialog === 'staff'}
           onClose={() => setDialog(null)}
+          device={device}
           onChanged={(event) => {
             refresh()
             if (event?.id && !event.clockedOutAt) setMyShift(event)
@@ -222,15 +205,6 @@ export default function PosShell({ device, onLogout, children }) {
           period={period}
           onChanged={refresh}
         />
-
-        {myShift && drawerGate.needsCount && !drawerGate.checking && (
-          <CashDrawerGate
-            device={device}
-            shift={myShift}
-            onConfirm={() => setDrawerGate((g) => ({ ...g, needsCount: false }))}
-            onCancel={() => navigate('/')}
-          />
-        )}
       </Box>
     </ShellContext.Provider>
   )

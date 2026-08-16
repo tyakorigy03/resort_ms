@@ -206,6 +206,7 @@ export default function Welcome({ device }) {
         key={qrMode ? 'qr' : clockTarget || 'list'}
         open={clockOpen}
         onClose={() => { setClockOpen(false); setQrMode(false); setClockTarget(null) }}
+        device={device}
         initialStep={qrMode ? 'qrcode' : undefined}
         initialStaffId={!qrMode ? clockTarget : undefined}
         onChanged={(event) => {

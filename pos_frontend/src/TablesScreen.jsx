@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Alert,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
+  Paper,
   Tab,
   Tabs,
   TextField,
@@ -17,12 +18,23 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import CloseIcon from '@mui/icons-material/Close'
+import GroupIcon from '@mui/icons-material/Group'
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney'
+import ScheduleIcon from '@mui/icons-material/Schedule'
+import InfoIcon from '@mui/icons-material/Info'
 import PersonIcon from '@mui/icons-material/Person'
 import SearchIcon from '@mui/icons-material/Search'
 import { api } from './api'
 import { useShell } from './PosShell'
 import { money } from './format'
+
+// Backoffice canvas the plan is authored on; positions are stored as pixels on it.
+const POS_W = 1000
+const POS_H = 600
+// Extra border around the plan so edge tables (and their badges) don't clip.
+const PAD = 32
 
 export default function TablesScreen() {
   const { myShift, refresh } = useShell()
@@ -39,6 +51,22 @@ export default function TablesScreen() {
   const [covers, setCovers] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const wrapRef = useRef(null)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const update = () => {
+      const { clientWidth, clientHeight } = el
+      if (!clientWidth || !clientHeight) return
+      setScale(Math.max(1, Math.min(clientWidth / (POS_W + PAD), clientHeight / (POS_H + PAD))))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   async function load() {
     setError(null)
@@ -152,7 +180,7 @@ export default function TablesScreen() {
       {error && (
         <Alert
           severity="error"
-          sx={{ fontSize: '0.85rem', mx: 2, mt: 1.5 }}
+          sx={{ fontSize: '0.85rem', mx: 1.5, mt: 1.5 }}
           action={
             <IconButton size="small" onClick={() => setError(null)}>
               <CloseIcon fontSize="small" />
@@ -163,16 +191,16 @@ export default function TablesScreen() {
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: 1, flexWrap: 'wrap' }}>
         <Tabs
           value={planId || plans[0]?.id || ''}
           onChange={(_, v) => setPlanId(v)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ flexGrow: 1, minHeight: 44 }}
+          sx={{ flexGrow: 1, minHeight: 40 }}
         >
           {plans.map((p) => (
-            <Tab key={p.id} label={`${p.name} (${p.tableCount})`} value={p.id} sx={{ minHeight: 44 }} />
+            <Tab key={p.id} label={`${p.name} (${p.tableCount})`} value={p.id} sx={{ minHeight: 40 }} />
           ))}
         </Tabs>
         <TextField
@@ -180,7 +208,7 @@ export default function TablesScreen() {
           placeholder="Search tables"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          sx={{ width: 220, ml: 2 }}
+          sx={{ width: 200 }}
           slotProps={{
             input: {
               startAdornment: (
@@ -193,34 +221,122 @@ export default function TablesScreen() {
         />
       </Box>
 
-      {plans.length === 0 && (
-        <Typography variant="body2" color="text.secondary" sx={{ p: 3, textAlign: 'center' }}>
-          No floor plans yet. Create one in the backoffice.
-        </Typography>
-      )}
-
-      <Box sx={{ flexGrow: 1, minHeight: 0, position: 'relative', m: 1.5, mt: 1, border: '1px dashed', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-        {activePlan?.backgroundImageUrl && (
-          <Box
-            component="img"
-            src={activePlan.backgroundImageUrl}
-            alt=""
-            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.25 }}
-          />
+      <Box sx={{ position: 'relative', flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box ref={wrapRef} sx={{ flexGrow: 1, minHeight: 0, m: 1.5, mt: 1, overflow: 'auto', display: 'flex' }}>
+        {plans.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ m: 'auto' }}>
+            No floor plans yet. Create one in the backoffice.
+          </Typography>
         )}
-        {positioned.map((table) => {
-          const session = sessionByTable(table.id)
-          return (
-            <Box
-              key={table.id}
-              sx={{
-                position: 'absolute',
-                left: `${clampPct(table.posX)}%`,
-                top: `${clampPct(table.posY)}%`,
-                transform: 'translate(-50%, -50%)',
-              }}
-            >
+
+        {plans.length > 0 && (
+          <Box
+            sx={(theme) => ({
+              position: 'relative',
+              m: 'auto',
+              width: (POS_W + PAD) * scale,
+              height: (POS_H + PAD) * scale,
+              flexShrink: 0,
+              border: '1px dashed',
+              borderColor: 'divider',
+              borderRadius: 1,
+              overflow: 'hidden',
+              bgcolor: 'background.paper',
+              backgroundImage: `radial-gradient(circle, ${alpha(theme.palette.divider, 0.3)} 1px, transparent 1px)`,
+              backgroundSize: '20px 20px',
+            })}
+          >
+            {activePlan?.backgroundImageUrl && (
+              <Box
+                component="img"
+                src={activePlan.backgroundImageUrl}
+                alt=""
+                sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.25 }}
+              />
+            )}
+            {positioned.map((table) => {
+              const session = sessionByTable(table.id)
+              return (
+                <Box
+                  key={table.id}
+                  sx={{
+                    position: 'absolute',
+                    left: (PAD / 2 + Number(table.posX)) * scale,
+                    top: (PAD / 2 + Number(table.posY)) * scale,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  <TableTile
+                    table={table}
+                    session={session}
+                    view={view}
+                    total={session ? totalBySession.get(session.id) : undefined}
+                    disabled={Boolean(busyTable)}
+                    onClick={() => tapTable(table)}
+                  />
+                </Box>
+              )
+            })}
+
+            {visibleTables.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+                No tables found.
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Box>
+
+      <Paper
+        elevation={3}
+        sx={{ position: 'absolute', left: 12, bottom: 12, zIndex: 5, borderRadius: 1.5, p: 0.5 }}
+      >
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={view}
+          onChange={(_, v) => v && setView(v)}
+          sx={{ '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 700, px: 1.2 } }}
+        >
+          {[
+            { key: 'covers', label: 'Covers', icon: <GroupIcon fontSize="small" /> },
+            { key: 'total', label: 'Total', icon: <AttachMoneyIcon fontSize="small" /> },
+            { key: 'time', label: 'Time', icon: <ScheduleIcon fontSize="small" /> },
+            { key: 'status', label: 'Status', icon: <InfoIcon fontSize="small" /> },
+          ].map((opt) => (
+            <ToggleButton key={opt.key} value={opt.key} sx={{ gap: 0.5 }}>
+              {opt.icon}
+              {opt.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Paper>
+      </Box>
+
+      {unpositioned.length > 0 && (
+        <Box
+          sx={{
+            m: 1.5,
+            mt: 0.5,
+            p: 1.5,
+            border: '1px dashed',
+            borderColor: 'divider',
+            borderRadius: 1,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 1,
+            alignItems: 'flex-start',
+          }}
+        >
+          <Typography variant="caption" sx={{ width: '100%', fontWeight: 800, color: 'text.secondary' }}>
+            Unplaced tables
+          </Typography>
+          {unpositioned.map((table) => {
+            const session = sessionByTable(table.id)
+            return (
               <TableTile
+                key={table.id}
                 table={table}
                 session={session}
                 view={view}
@@ -228,61 +344,10 @@ export default function TablesScreen() {
                 disabled={Boolean(busyTable)}
                 onClick={() => tapTable(table)}
               />
-            </Box>
-          )
-        })}
-
-        {unpositioned.length > 0 && (
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 'auto 0 0 0',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-              gap: 1,
-              p: 1.5,
-            }}
-          >
-            {unpositioned.map((table) => {
-              const session = sessionByTable(table.id)
-              return (
-                <TableTile
-                  key={table.id}
-                  table={table}
-                  session={session}
-                  view={view}
-                  total={session ? totalBySession.get(session.id) : undefined}
-                  disabled={Boolean(busyTable)}
-                  onClick={() => tapTable(table)}
-                />
-              )
-            })}
-          </Box>
-        )}
-
-        {visibleTables.length === 0 && (
-          <Typography variant="body2" color="text.secondary" sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-            No tables found.
-          </Typography>
-        )}
-      </Box>
-
-      <Box sx={{ px: 1.5, pb: 1.5 }}>
-        <ToggleButtonGroup
-          fullWidth
-          exclusive
-          size="small"
-          value={view}
-          onChange={(_, v) => v && setView(v)}
-          sx={{ '& .MuiToggleButtonGroup-grouped': { borderRadius: '4px !important' } }}
-        >
-          {(['covers', 'total', 'time', 'status']).map((v) => (
-            <ToggleButton key={v} value={v} sx={{ textTransform: 'none', fontWeight: 700 }}>
-              {v.charAt(0).toUpperCase() + v.slice(1)}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </Box>
+            )
+          })}
+        </Box>
+      )}
 
       <CoverDialog
         open={Boolean(coversFor)}
@@ -302,8 +367,8 @@ export default function TablesScreen() {
 
 function TableTile({ table, session, view, total, disabled, onClick }) {
   const seated = Boolean(session)
-  const covers = session?.covers || 0
   const round = table.shape === 'round' || table.shape === 'circle'
+  const covers = session?.covers || 0
 
   const modeValue = useMemo(() => {
     if (!seated) {
@@ -323,61 +388,70 @@ function TableTile({ table, session, view, total, disabled, onClick }) {
   }, [seated, view, covers, total, session])
 
   return (
-    <Box sx={{ width: 112, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, cursor: disabled ? 'default' : 'pointer' }} onClick={onClick}>
+    <Box
+      sx={{ width: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, cursor: disabled ? 'default' : 'pointer' }}
+      onClick={onClick}
+    >
       <Box sx={{ position: 'relative', width: '100%' }}>
         {seated && (
           <Box
             sx={{
               position: 'absolute',
-              top: -8,
-              right: -8,
+              top: -9,
+              right: -9,
               zIndex: 2,
-              width: 26,
-              height: 26,
+              width: 24,
+              height: 24,
               borderRadius: '50%',
               bgcolor: 'success.main',
-              color: '#fff',
+              color: 'success.contrastText',
               display: 'grid',
               placeItems: 'center',
+              boxShadow: 1,
             }}
           >
-            <PersonIcon sx={{ fontSize: 16 }} />
+            <PersonIcon sx={{ fontSize: 15 }} />
           </Box>
         )}
         <Box
           sx={{
-            bgcolor: seated ? 'success.main' : 'background.paper',
-            border: '1px solid',
-            borderColor: seated ? 'success.main' : 'divider',
-            borderRadius: round ? '50%' : 2,
             width: '100%',
-            aspectRatio: round ? '1 / 1' : 'auto',
-            py: round ? '25%' : 1,
-            px: 0.75,
+            aspectRatio: round ? '1 / 1' : '12 / 7',
+            borderRadius: round ? '50%' : 0.25,
+            bgcolor: seated ? 'success.light' : 'action.hover',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 0.5,
-            '&:hover': { borderColor: 'primary.main' },
+            px: 0.5,
+            transition: 'background-color 0.15s ease',
+            '&:hover': { bgcolor: seated ? 'success.light' : 'action.selected' },
           }}
         >
-          <SeatDots seats={table.seats} covers={seated ? covers : 0} filledColor={seated ? '#fff' : 'success.main'} />
-          <Typography variant="h6" sx={{ fontWeight: 800, color: seated ? '#fff' : 'text.primary', fontSize: round ? 15 : 18 }}>
+          <Typography
+            sx={{
+              fontWeight: 800,
+              lineHeight: 1.05,
+              color: seated ? 'success.main' : 'text.primary',
+              fontSize: round ? 13 : 15,
+              textAlign: 'center',
+            }}
+          >
             {table.label}
           </Typography>
-          <SeatDots seats={table.seats} covers={seated ? covers : 0} filledColor={seated ? '#fff' : 'success.main'} />
+          <SeatDots seats={table.seats} covers={seated ? covers : 0} filledColor={seated ? 'success.main' : 'text.secondary'} />
         </Box>
       </Box>
       <Box
         sx={{
-          minWidth: 46,
+          minWidth: 50,
           px: 1,
           py: 0.25,
-          borderRadius: 10,
-          bgcolor: seated ? 'primary.main' : 'action.hover',
-          color: seated ? '#fff' : 'text.secondary',
-          fontSize: 12,
+          borderRadius: 1,
+          bgcolor: seated ? 'success.main' : 'action.hover',
+          color: seated ? 'success.contrastText' : 'text.secondary',
+          fontSize: 11,
           fontWeight: 700,
           textAlign: 'center',
         }}
@@ -389,31 +463,18 @@ function TableTile({ table, session, view, total, disabled, onClick }) {
 }
 
 function SeatDots({ seats, covers, filledColor }) {
-  const top = Math.ceil(seats / 2)
-  const bottom = seats - top
-  const renderRow = (count, offset) =>
-    Array.from({ length: count }, (_, i) => (
-      <Box
-        key={i}
-        sx={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          bgcolor: offset + i < covers ? filledColor : 'rgba(128,128,128,0.35)',
-        }}
-      />
-    ))
+  const count = Math.max(Number(seats) || 1, 1)
   return (
-    <Box sx={{ display: 'flex', gap: 0.5 }}>
-      {renderRow(top, 0)}
-      {bottom > 0 && renderRow(bottom, top)}
+    <Box sx={{ display: 'flex', gap: 0.5, px: 0.5 }}>
+      {Array.from({ length: count }, (_, i) => (
+        <Box key={i} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: i < covers ? filledColor : 'text.secondary' }} />
+      ))}
     </Box>
   )
 }
 
 // Spec 3.3: "Cover count" dialog — keypad 7 8 9 / 4 5 6 / 1 2 3 / 00 0 C,
-// Cancel in red at the top left, Confirm as a full-width blue button at the
-// bottom.
+// Cancel in red at the top left, Confirm as a full-width button at the bottom.
 function CoverDialog({ open, table, value, busy, onChange, onCancel, onConfirm }) {
   const max = table?.seats || 20
   const tooMany = Number(value) > max
@@ -460,7 +521,7 @@ function CoverDialog({ open, table, value, busy, onChange, onCancel, onConfirm }
                 <Button
                   key={key}
                   fullWidth
-                  variant="outlined"
+                  variant="soft"
                   disabled={busy}
                   onClick={() => onKey(key)}
                   sx={{ height: 52, fontSize: 18, fontWeight: 600 }}
@@ -487,11 +548,6 @@ function CoverDialog({ open, table, value, busy, onChange, onCancel, onConfirm }
       </Box>
     </Dialog>
   )
-}
-
-function clampPct(value) {
-  if (value === null || value === undefined) return 0
-  return Math.min(Math.max(Number(value), 0), 100)
 }
 
 function minsSince(value) {

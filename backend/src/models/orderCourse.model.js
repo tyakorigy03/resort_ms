@@ -103,6 +103,40 @@ async function fireCourse(orderId, courseId) {
   return posOrderModel.findById(orderId)
 }
 
+// Serve a fired course: mark every in-flight item of the course (including
+// station copies) as completed so the KDS board clears, and flag the course
+// itself as served. Unfired lines (added after firing) are left untouched.
+async function serveCourse(orderId, courseId) {
+  const [courseRows] = await pool.query(
+    'SELECT id, order_id, fired_at FROM order_courses WHERE id = ? AND order_id = ?',
+    [courseId, orderId],
+  )
+  if (!courseRows.length) throw httpError('Course not found', 404)
+  if (!courseRows[0].fired_at) throw httpError('Course is not fired yet', 409)
+
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    await conn.query(
+      `UPDATE pos_order_items
+       SET kds_status = 'completed', completed_at = NOW()
+       WHERE order_id = ? AND course_id = ? AND fired_at IS NOT NULL AND kds_status NOT IN ('completed', 'cancelled')`,
+      [orderId, courseId],
+    )
+    await conn.query(
+      'UPDATE order_courses SET status = ? WHERE id = ?',
+      ['completed', courseId],
+    )
+    await conn.commit()
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+  return posOrderModel.findById(orderId)
+}
+
 // Set a course's own status (new / preparing / ready / completed / on_hold /
 // cancelled). Used by the register's "On hold" action; does not touch fired_at.
 async function setStatus(orderId, courseId, status) {
@@ -116,4 +150,4 @@ async function setStatus(orderId, courseId, status) {
   return posOrderModel.findById(orderId)
 }
 
-module.exports = { listByOrder, addCourse, fireCourse, setStatus }
+module.exports = { listByOrder, addCourse, fireCourse, serveCourse, setStatus }

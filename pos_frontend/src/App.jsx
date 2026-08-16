@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { getDevice, getToken, clearSession } from './api'
+import { loadMyShift } from './myShift'
 import Login from './Login'
 import Welcome from './Welcome'
 import ClockInOut from './ClockInOut'
@@ -22,9 +23,15 @@ function RedirectIfAuthed({ authed, children }) {
   return children
 }
 
+function RequireShift({ shift, children }) {
+  if (!shift) return <Navigate to="/clock" replace />
+  return children
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(false)
   const [device, setDevice] = useState(null)
+  const [shift, setShift] = useState(loadMyShift)
   const [ready, setReady] = useState(false)
   const navigate = useNavigate()
 
@@ -34,10 +41,20 @@ export default function App() {
     setReady(true)
   }, [])
 
+  useEffect(() => {
+    const handler = () => setShift(loadMyShift())
+    window.addEventListener('pos-shift-changed', handler)
+    return () => window.removeEventListener('pos-shift-changed', handler)
+  }, [])
+
   function onAuth(session) {
     setDevice(session.device)
     setAuthed(true)
     navigate('/', { replace: true })
+  }
+
+  function onClockedIn() {
+    navigate('/register', { replace: true })
   }
 
   function logout() {
@@ -51,9 +68,11 @@ export default function App() {
   function AuthShell({ children }) {
     return (
       <RequireAuth authed={authed}>
-        <PosShell device={device} onLogout={logout}>
-          {children}
-        </PosShell>
+        <RequireShift shift={shift}>
+          <PosShell device={device} onLogout={logout}>
+            {children}
+          </PosShell>
+        </RequireShift>
       </RequireAuth>
     )
   }
@@ -72,7 +91,9 @@ export default function App() {
         path="/"
         element={
           <RequireAuth authed={authed}>
-            <Welcome device={device} />
+            <RequireShift shift={shift}>
+              <Welcome device={device} />
+            </RequireShift>
           </RequireAuth>
         }
       />
@@ -80,7 +101,7 @@ export default function App() {
         path="/clock"
         element={
           <RequireAuth authed={authed}>
-            <ClockInOut onBack={() => navigate('/')} onClockedIn={() => navigate('/tables')} />
+            <ClockInOut device={device} onClockedIn={onClockedIn} />
           </RequireAuth>
         }
       />

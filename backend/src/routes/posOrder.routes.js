@@ -149,6 +149,17 @@ router.post('/:id/courses/:courseId/fire', verifyDevice, async (req, res, next) 
   }
 })
 
+// Serve a fired course: completes all its kitchen items and the course itself.
+router.post('/:id/courses/:courseId/serve', verifyDevice, async (req, res, next) => {
+  try {
+    const order = await loadOrder(req.params.id, req.device.outletId)
+    if (!order) return res.status(404).json({ message: 'Order not found' })
+    res.json(await orderCourseModel.serveCourse(order.id, req.params.courseId))
+  } catch (error) {
+    next(error)
+  }
+})
+
 // Set a course's status (e.g. on_hold from the register).
 router.patch('/:id/courses/:courseId/status', verifyDevice, async (req, res, next) => {
   try {

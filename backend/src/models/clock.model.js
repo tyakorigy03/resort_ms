@@ -53,6 +53,28 @@ async function cashFor(event) {
   }
 }
 
+// Full shift summary for the clock-in/out screens: till reconciliation plus
+// sales figures (paid orders only) and elapsed time for the shift window.
+async function summaryFor(event) {
+  const cash = await cashFor(event)
+  const [[rows]] = await pool.query(
+    `SELECT COUNT(*) AS order_count, COALESCE(SUM(total), 0) AS sales_total
+     FROM pos_orders
+     WHERE staff_id = ?
+       AND status = 'paid'
+       AND created_at >= ?
+       AND created_at <= ?`,
+    [event.staffId, event.clockedInAt, event.clockedOutAt || new Date()],
+  )
+  return {
+    ...event,
+    cash,
+    orderCount: Number(rows.order_count),
+    salesTotal: Math.round(Number(rows.sales_total) * 100) / 100,
+    durationSeconds: Math.max(0, Math.floor((new Date(event.clockedOutAt || new Date()) - new Date(event.clockedInAt)) / 1000)),
+  }
+}
+
 // Staff currently clocked in, scoped to an outlet through the device they used.
 async function findActiveByOutlet(outletId) {
   const [rows] = await pool.query(
@@ -103,7 +125,7 @@ async function clockOut(id, { notes, closingCash } = {}) {
     [closing, notes || null, id],
   )
   const event = await findById(id)
-  return { ...event, cash: await cashFor(event) }
+  return summaryFor(event)
 }
 
 async function findById(id) {
@@ -138,4 +160,4 @@ async function findShiftsForPeriod(period) {
   return Promise.all(rows.map(mapEvent).map(async (event) => ({ ...event, cash: await cashFor(event) })))
 }
 
-module.exports = { findActiveByOutlet, findActiveByStaff, clockIn, clockOut, findById, findShiftsForPeriod }
+module.exports = { findActiveByOutlet, findActiveByStaff, clockIn, clockOut, findById, summaryFor, findShiftsForPeriod }
