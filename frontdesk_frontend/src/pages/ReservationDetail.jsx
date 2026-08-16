@@ -27,7 +27,7 @@ import ExitToAppIcon from '@mui/icons-material/ExitToApp'
 import PaymentsIcon from '@mui/icons-material/Payments'
 import { api } from '../api'
 import { formatDate } from '../lib/format'
-import { StatusChip } from '../lib/status'
+import { StatusChip } from '../lib/status.jsx'
 
 function hkColor(status) {
   switch (status) {

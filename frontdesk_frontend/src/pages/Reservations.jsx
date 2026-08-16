@@ -33,7 +33,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
 import { api } from '../api'
 import { formatDate } from '../lib/format'
-import { StatusChip } from '../lib/status'
+import { StatusChip } from '../lib/status.jsx'
 
 const STATUSES = ['booked', 'checked_in', 'checked_out', 'no_show', 'cancelled']
 
