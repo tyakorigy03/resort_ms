@@ -4,6 +4,10 @@ export function listRooms() {
   return request('/api/rooms')
 }
 
+export function getRoom(id) {
+  return request(`/api/rooms/${id}`)
+}
+
 export function createRoom(data) {
   return request('/api/rooms', {
     method: 'POST',

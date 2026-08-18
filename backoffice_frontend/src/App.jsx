@@ -27,6 +27,7 @@ import ProductionCenters from './pages/configuration/productionCenters'
 import Devices from './pages/devices/devices'
 import Customers from './pages/customers/customers'
 import Rooms from './pages/rooms/rooms'
+import RoomDetail from './pages/rooms/roomDetail'
 import RoomTypes from './pages/rooms/roomTypes'
 import RatePlans from './pages/rooms/ratePlans'
 import ReservationsView from './pages/rooms/reservations'
@@ -74,6 +75,7 @@ function App() {
             <Route path="/devices" element={<Devices />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/rooms/rooms" element={<Rooms />} />
+            <Route path="/rooms/rooms/:id" element={<RoomDetail />} />
             <Route path="/rooms/room-types" element={<RoomTypes />} />
             <Route path="/rooms/rate-plans" element={<RatePlans />} />
             <Route path="/rooms/reservations" element={<ReservationsView />} />

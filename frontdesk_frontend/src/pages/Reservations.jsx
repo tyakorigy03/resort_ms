@@ -44,28 +44,34 @@ function shortDate(value) {
   if (!value) return '—'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return String(value)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function toDateInput(value) {
   if (!value) return ''
   const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10)
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
 }
 
 function todayLocal() {
   const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}T00:00`
 }
 
 function addDaysLocal(dateStr, n) {
-  const [y, m, d] = dateStr.split('-').map(Number)
+  const datePart = dateStr.split('T')[0]
+  const [y, m, d] = datePart.split('-').map(Number)
   const dt = new Date(y, m - 1, d + n)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}T00:00`
 }
 
 const inputSx = {
@@ -399,24 +405,25 @@ function ReservationDialog({ open, reservation, onClose, onSaved }) {
             variant="standard"
             size="small"
             label="Check-in"
-            type="date"
+            type="datetime-local"
             value={form.checkInDate}
             onChange={set('checkInDate')}
             fullWidth
             required
             sx={inputSx}
-            InputProps={{ inputProps: { min: today } }}
+            InputLabelProps={{ shrink: true }}
           />
           <TextField
             variant="standard"
             size="small"
             label="Check-out"
-            type="date"
+            type="datetime-local"
             value={form.checkOutDate}
             onChange={set('checkOutDate')}
             fullWidth
             required
             sx={inputSx}
+            InputLabelProps={{ shrink: true }}
           />
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -886,7 +893,7 @@ export default function Reservations({ newBooking }) {
                   id="checkInDateFilter"
                   size="small"
                   variant="standard"
-                  type="date"
+                  type="datetime-local"
                   value={checkInDate}
                   onChange={(e) => setCheckInDate(e.target.value)}
                 />

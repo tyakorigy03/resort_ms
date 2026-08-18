@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Button,
@@ -13,6 +14,7 @@ import {
   FormControlLabel,
   IconButton,
   InputLabel,
+  Link,
   MenuItem,
   Select,
   Switch,
@@ -41,6 +43,7 @@ const inputSx = {
 }
 
 function RoomDialog({ room = null, roomTypes, onSave, onClose }) {
+  const navigate = useNavigate()
   const [form, setForm] = useState({
     roomNumber: room?.roomNumber ?? '',
     roomTypeId: room?.roomTypeId ?? '',
@@ -170,7 +173,24 @@ function RoomDialog({ room = null, roomTypes, onSave, onClose }) {
         />
         {error && (
           <Typography variant="caption" sx={{ color: 'error.main', fontSize: '0.7rem' }}>
-            {error}
+            {/View room (\d+)/.test(error) ? (
+              <>
+                {'Room already exists. '}
+                <Link
+                  component="button"
+                  underline="always"
+                  onClick={() => {
+                    const match = error.match(/View room (\d+)/)
+                    if (match) navigate(`/rooms/rooms/${match[1]}`)
+                  }}
+                  sx={{ fontSize: '0.7rem', fontWeight: 600 }}
+                >
+                  View Room
+                </Link>
+              </>
+            ) : (
+              error
+            )}
           </Typography>
         )}
       </DialogContent>

@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS resort_msv3;
-USE resort_msv3;
+CREATE DATABASE IF NOT EXISTS resort;
+USE resort;
 
 CREATE TABLE IF NOT EXISTS users (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -303,6 +303,20 @@ CREATE TABLE IF NOT EXISTS production_batch_items (
   CONSTRAINT fk_pbi_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
 
+-- Tax configuration applied to prices. tax_type: inclusive = tax baked into
+-- price, exclusive = added on top at the register.
+CREATE TABLE IF NOT EXISTS tax_profiles (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+  tax_type ENUM('inclusive','exclusive') NOT NULL DEFAULT 'inclusive',
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
+
 -- Accounting groups classify items for reporting (Food, Beverage, Cleaning,
 -- ...). items.accounting_group stores the group NAME, matching this table, so
 -- an item keeps its label even if the group is later renamed/deleted. Each
@@ -484,20 +498,6 @@ CREATE TABLE IF NOT EXISTS outlets (
   code VARCHAR(50) NULL,
   address TEXT NULL,
   phone VARCHAR(50) NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
-);
-
--- Tax configuration applied to prices. tax_type: inclusive = tax baked into
--- price, exclusive = added on top at the register.
-CREATE TABLE IF NOT EXISTS tax_profiles (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  name VARCHAR(100) NOT NULL,
-  rate DECIMAL(5,2) NOT NULL DEFAULT 0,
-  tax_type ENUM('inclusive','exclusive') NOT NULL DEFAULT 'inclusive',
-  is_default TINYINT(1) NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -918,8 +918,8 @@ CREATE TABLE IF NOT EXISTS reservations (
   room_id INT UNSIGNED NULL,
   room_type_id INT UNSIGNED NOT NULL,
   rate_plan_id INT UNSIGNED NULL,
-  check_in_date DATE NOT NULL,
-  check_out_date DATE NOT NULL,
+  check_in_date DATETIME NOT NULL,
+  check_out_date DATETIME NOT NULL,
   adults INT UNSIGNED NOT NULL DEFAULT 1,
   children INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('booked','checked_in','checked_out','no_show','cancelled') NOT NULL DEFAULT 'booked',
@@ -979,4 +979,17 @@ CREATE TABLE IF NOT EXISTS folio_line_items (
   CONSTRAINT fk_fli_folio FOREIGN KEY (folio_id) REFERENCES folios(id) ON DELETE CASCADE,
   CONSTRAINT fk_fli_order FOREIGN KEY (source_order_id) REFERENCES pos_orders(id) ON DELETE SET NULL,
   CONSTRAINT fk_fli_staff FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS room_blocks (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  room_id INT UNSIGNED NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  reason VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_block_room (room_id),
+  KEY idx_block_dates (start_date, end_date),
+  CONSTRAINT fk_block_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
 );

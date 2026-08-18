@@ -12,6 +12,16 @@ router.get('/', verifyToken, async (req, res, next) => {
   }
 })
 
+router.get('/:id', verifyToken, async (req, res, next) => {
+  try {
+    const room = await roomModel.findById(req.params.id)
+    if (!room) return res.status(404).json({ message: 'Room not found' })
+    res.json(room)
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.post('/', verifyToken, async (req, res, next) => {
   try {
     const { roomNumber, roomTypeId } = req.body

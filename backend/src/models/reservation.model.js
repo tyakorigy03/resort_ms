@@ -3,7 +3,9 @@ const { httpError } = require('../utils/errors')
 
 const BASE_SELECT = `
   SELECT rv.id, rv.customer_id, rv.room_id, rv.room_type_id, rv.rate_plan_id,
-         rv.check_in_date, rv.check_out_date, rv.adults, rv.children, rv.status, rv.source, rv.notes,
+         DATE_FORMAT(rv.check_in_date, '%Y-%m-%dT%H:%i') AS check_in_date,
+         DATE_FORMAT(rv.check_out_date, '%Y-%m-%dT%H:%i') AS check_out_date,
+         rv.adults, rv.children, rv.status, rv.source, rv.notes,
          rv.created_at, rv.updated_at,
          c.first_name, c.last_name, c.email, c.phone,
          CONCAT_WS(' ', c.first_name, c.last_name) AS guest_name,
@@ -18,7 +20,8 @@ const BASE_SELECT = `
 
 function nightsFor(checkIn, checkOut) {
   if (!checkIn || !checkOut) return 0
-  return Math.max(0, Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000))
+  const ms = new Date(checkOut) - new Date(checkIn)
+  return Math.max(0, Math.round((ms / 86400000) * 100) / 100)
 }
 
 function todayStr() {
@@ -26,11 +29,12 @@ function todayStr() {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return `${y}-${m}-${day}T00:00`
 }
 
 function addDays(dateStr, n) {
-  const [y, m, d] = dateStr.split('-').map(Number)
+  const datePart = dateStr.split('T')[0]
+  const [y, m, d] = datePart.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
 }
 
@@ -117,7 +121,12 @@ async function findById(id) {
   return mapReservation(rows[0], await openFolioIdFor(rows[0]?.id))
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const datetimeRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+function toMySqlDatetime(value) {
+  if (!value) return value
+  return String(value).replace('T', ' ')
+}
 
 function parseCount(value) {
   return value === undefined || value === null || value === '' ? null : Number(value)
@@ -137,7 +146,7 @@ async function validateRoomAssignment(query, roomId, roomTypeId, checkInDate, ch
     `SELECT rv.id FROM reservations rv
      WHERE rv.room_id = ? AND rv.status IN ('booked', 'checked_in')
        AND rv.id <> ? AND rv.check_in_date < ? AND rv.check_out_date > ?`,
-    [Number(roomId), Number(excludeReservationId) || 0, checkOutDate, checkInDate],
+    [Number(roomId), Number(excludeReservationId) || 0, toMySqlDatetime(checkOutDate), toMySqlDatetime(checkInDate)],
   )
   if (overlaps.length) throw httpError('Room has an overlapping reservation', 400)
   return room
@@ -165,8 +174,9 @@ async function create(data) {
   if (!customerId || !roomTypeId || !checkInDate || !checkOutDate) {
     throw httpError('Guest, room type, check-in and check-out dates are required', 400)
   }
-  if (!DATE_RE.test(checkInDate) || !DATE_RE.test(checkOutDate)) {
-    throw httpError('Check-in and check-out dates must be YYYY-MM-DD', 400)
+  const datetimeRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+  if (!datetimeRe.test(checkInDate) || !datetimeRe.test(checkOutDate)) {
+    throw httpError('Check-in and check-out must be valid datetime values', 400)
   }
   if (new Date(checkOutDate) <= new Date(checkInDate)) {
     throw httpError('Check-out must be after check-in', 400)
@@ -188,8 +198,8 @@ async function create(data) {
         assignedRoomId,
         Number(roomTypeId),
         ratePlanId ? Number(ratePlanId) : null,
-        checkInDate,
-        checkOutDate,
+        toMySqlDatetime(checkInDate),
+        toMySqlDatetime(checkOutDate),
         parseCount(adults) ?? 1,
         parseCount(children) ?? 0,
         source || null,
@@ -215,9 +225,10 @@ async function update(id, data) {
   const nextRoomTypeId = data.roomTypeId !== undefined ? Number(data.roomTypeId) || null : current.roomTypeId
   const nextCheckIn = data.checkInDate !== undefined ? data.checkInDate : current.checkInDate
   const nextCheckOut = data.checkOutDate !== undefined ? data.checkOutDate : current.checkOutDate
+  const datetimeRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
   if ((data.checkInDate !== undefined || data.checkOutDate !== undefined) &&
-      (!DATE_RE.test(nextCheckIn) || !DATE_RE.test(nextCheckOut))) {
-    throw httpError('Check-in and check-out dates must be YYYY-MM-DD', 400)
+      (!datetimeRe.test(nextCheckIn) || !datetimeRe.test(nextCheckOut))) {
+    throw httpError('Check-in and check-out must be valid datetime values', 400)
   }
   if (new Date(nextCheckOut) <= new Date(nextCheckIn)) {
     throw httpError('Check-out must be after check-in', 400)
@@ -238,8 +249,8 @@ async function update(id, data) {
   const push = (col, val) => { fields.push(`${col} = ?`); params.push(val) }
   if (data.roomTypeId !== undefined) push('room_type_id', nextRoomTypeId)
   if (data.ratePlanId !== undefined) push('rate_plan_id', data.ratePlanId ? Number(data.ratePlanId) : null)
-  if (data.checkInDate !== undefined) push('check_in_date', nextCheckIn)
-  if (data.checkOutDate !== undefined) push('check_out_date', nextCheckOut)
+  if (data.checkInDate !== undefined) push('check_in_date', toMySqlDatetime(nextCheckIn))
+  if (data.checkOutDate !== undefined) push('check_out_date', toMySqlDatetime(nextCheckOut))
   if (data.adults !== undefined) push('adults', parseCount(data.adults) ?? 1)
   if (data.children !== undefined) push('children', parseCount(data.children) ?? 0)
   if (data.source !== undefined) push('source', data.source || null)
@@ -397,8 +408,8 @@ async function stays({ startDate, days = 14 } = {}) {
   )
   const [resRows] = await pool.query(
     `SELECT rv.id, rv.customer_id, rv.room_id, rv.room_type_id, rv.rate_plan_id,
-            DATE_FORMAT(rv.check_in_date, '%Y-%m-%d') AS check_in_date,
-            DATE_FORMAT(rv.check_out_date, '%Y-%m-%d') AS check_out_date,
+            DATE_FORMAT(rv.check_in_date, '%Y-%m-%dT%H:%i') AS check_in_date,
+            DATE_FORMAT(rv.check_out_date, '%Y-%m-%dT%H:%i') AS check_out_date,
             rv.status, rv.source,
             CONCAT_WS(' ', c.first_name, c.last_name) AS guest_name,
             rt.name AS room_type_name,
@@ -523,7 +534,7 @@ async function stays({ startDate, days = 14 } = {}) {
   for (const id of reservedSet) blockedSet.delete(id)
 
   const [[dueOutRow]] = await pool.query(
-    `SELECT COUNT(*) AS c FROM reservations rv WHERE rv.status = 'checked_in' AND rv.check_out_date = ?`,
+    `SELECT COUNT(*) AS c FROM reservations rv WHERE rv.status = 'checked_in' AND DATE(rv.check_out_date) = ?`,
     [start],
   )
   const [[dirtyRow]] = await pool.query(
@@ -533,6 +544,21 @@ async function stays({ startDate, days = 14 } = {}) {
   const occupied = occupiedSet.size
   const reserved = reservedSet.size
   const blocked = blockedSet.size
+
+  const [orderRows] = await pool.query(
+    `SELECT f.room_id, DATE(po.created_at) AS order_date,
+            COUNT(DISTINCT po.id) AS order_count,
+            ROUND(SUM(fli.amount), 2) AS order_total
+     FROM folio_line_items fli
+     JOIN folios f ON f.id = fli.folio_id
+     JOIN pos_orders po ON po.id = fli.source_order_id
+     WHERE fli.type = 'pos_charge'
+       AND f.room_id IS NOT NULL
+       AND po.status = 'paid'
+       AND po.created_at >= ? AND po.created_at < DATE_ADD(?, INTERVAL ? DAY)
+     GROUP BY f.room_id, DATE(po.created_at)`,
+    [start, start, count],
+  )
 
   return {
     startDate: start,
@@ -573,6 +599,12 @@ async function stays({ startDate, days = 14 } = {}) {
       startDate: row.start_date,
       endDate: row.end_date,
       reason: row.reason || 'Blocked',
+    })),
+    orders: orderRows.map((row) => ({
+      roomId: row.room_id,
+      date: typeof row.order_date === 'string' ? row.order_date : new Date(row.order_date).toISOString().slice(0, 10),
+      count: Number(row.order_count || 0),
+      total: Number(row.order_total || 0),
     })),
     statusCounts: {
       all: totalRooms,
@@ -699,11 +731,11 @@ async function checkOut(id, opts = {}) {
 async function dashboardCounts() {
   const [arrivals] = await pool.query(
     `SELECT COUNT(*) AS n FROM reservations
-     WHERE status IN ('booked', 'checked_in') AND check_in_date = CURDATE()`,
+     WHERE status IN ('booked', 'checked_in') AND DATE(check_in_date) = CURDATE()`,
   )
   const [departures] = await pool.query(
     `SELECT COUNT(*) AS n FROM reservations
-     WHERE status IN ('checked_in') AND check_out_date = CURDATE()`,
+     WHERE status IN ('checked_in') AND DATE(check_out_date) = CURDATE()`,
   )
   const [inHouse] = await pool.query(
     `SELECT COUNT(*) AS n FROM reservations WHERE status = 'checked_in'`,
@@ -720,7 +752,7 @@ async function dashboardCounts() {
   )
   const [expected] = await pool.query(
     `SELECT COALESCE(SUM(rp.nights), 0) AS total FROM (
-       SELECT DATEDIFF(check_out_date, check_in_date) AS nights FROM reservations
+       SELECT ROUND(TIMESTAMPDIFF(HOUR, check_in_date, check_out_date) / 24, 2) AS nights FROM reservations
        WHERE status = 'checked_in' AND check_out_date > check_in_date
      ) rp`,
   )

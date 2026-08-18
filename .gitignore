@@ -3,3 +3,7 @@
 # pos_frontend - Copy/
 project.zip
 
+node_modules/
+dist/
+backend/uploads/
+

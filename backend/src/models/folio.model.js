@@ -154,9 +154,11 @@ async function postRoomCharges(folioId, { nights, rate, description }) {
   const label = description || (folio.checkInDate && folio.checkOutDate
     ? `Room charges ${folio.checkInDate} to ${folio.checkOutDate}`
     : 'Room charges')
+  const nightsNum = Number(nights)
+  const nightLabel = nightsNum === 1 ? 'night' : 'nights'
   return addLine(folioId, {
     type: 'room_charge',
-    description: `${label} (${nights} night${nights === 1 ? '' : 's'} @ ${Number(rate).toFixed(2)})`,
+    description: `${label} (${nights} ${nightLabel} @ ${Number(rate).toFixed(2)})`,
     amount,
   })
 }
