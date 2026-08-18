@@ -303,6 +303,20 @@ CREATE TABLE IF NOT EXISTS production_batch_items (
   CONSTRAINT fk_pbi_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
 
+-- Tax configuration applied to prices. tax_type: inclusive = tax baked into
+-- price, exclusive = added on top at the register.
+CREATE TABLE IF NOT EXISTS tax_profiles (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+  tax_type ENUM('inclusive','exclusive') NOT NULL DEFAULT 'inclusive',
+  is_default TINYINT(1) NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
+
 -- Accounting groups classify items for reporting (Food, Beverage, Cleaning,
 -- ...). items.accounting_group stores the group NAME, matching this table, so
 -- an item keeps its label even if the group is later renamed/deleted. Each
@@ -484,20 +498,6 @@ CREATE TABLE IF NOT EXISTS outlets (
   code VARCHAR(50) NULL,
   address TEXT NULL,
   phone VARCHAR(50) NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
-);
-
--- Tax configuration applied to prices. tax_type: inclusive = tax baked into
--- price, exclusive = added on top at the register.
-CREATE TABLE IF NOT EXISTS tax_profiles (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  name VARCHAR(100) NOT NULL,
-  rate DECIMAL(5,2) NOT NULL DEFAULT 0,
-  tax_type ENUM('inclusive','exclusive') NOT NULL DEFAULT 'inclusive',
-  is_default TINYINT(1) NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
