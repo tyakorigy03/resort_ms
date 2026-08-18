@@ -51,24 +51,20 @@ function todayStr() {
 }
 
 function addDays(dateStr, n) {
-  const [y, m, d] = datePart(dateStr).split("-").map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-function datePart(s) {
-  return String(s).split("T")[0];
-}
-
 function diffDays(a, b) {
-  const [ya, ma, da] = datePart(a).split("-").map(Number);
-  const [yb, mb, db] = datePart(b).split("-").map(Number);
+  const [ya, ma, da] = a.split("-").map(Number);
+  const [yb, mb, db] = b.split("-").map(Number);
   return Math.round(
     (Date.UTC(ya, ma - 1, da) - Date.UTC(yb, mb - 1, db)) / 86400000,
   );
 }
 
 function parseLocal(dateStr) {
-  const [y, m, d] = datePart(dateStr).split("-").map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
@@ -124,7 +120,7 @@ const weekendBg = (date) =>
 
 function StatusPill({ label, count, color }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5}}>
       <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>
         {label}
       </Typography>
@@ -132,7 +128,7 @@ function StatusPill({ label, count, color }) {
         label={count}
         size="small"
         sx={{
-          bgcolor: color,
+          bgcolor: "#b2b1b1",
           color: "#fff",
           height: 20,
           minWidth: 20,
@@ -276,55 +272,6 @@ function BlockBar({ block, days, startDate }) {
   );
 }
 
-function OrderBadge({ orders, days, startDate }) {
-  if (!orders || orders.length === 0) return null;
-  const byDate = {};
-  for (const o of orders) byDate[o.date] = o;
-  const badges = [];
-  for (let i = 0; i < days; i++) {
-    const d = addDays(startDate, i);
-    const o = byDate[d];
-    if (o) badges.push({ idx: i, count: o.count, total: o.total });
-  }
-  if (badges.length === 0) return null;
-  return (
-    <>
-      {badges.map((b) => (
-        <Box
-          key={b.idx}
-          title={`${b.count} order${b.count > 1 ? "s" : ""} · ${formatMoney(b.total)}`}
-          sx={{
-            position: "absolute",
-            top: 2,
-            left: `calc(${(b.idx / days) * 100}% + 2px)`,
-            width: `calc(${1 / days * 100}% - 4px)`,
-            bottom: 2,
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            pt: 0.25,
-            zIndex: 3,
-            pointerEvents: "none",
-          }}
-        >
-          <Chip
-            label={formatMoney(b.total)}
-            size="small"
-            sx={{
-              height: 14,
-              fontSize: "0.52rem",
-              fontWeight: 700,
-              bgcolor: "#f97316",
-              color: "#fff",
-              "& .MuiChip-label": { px: 0.4, lineHeight: 1 },
-            }}
-          />
-        </Box>
-      ))}
-    </>
-  );
-}
-
 export default function StaysBoard() {
   const navigate = useNavigate();
   const [startDate, setStartDate] = useState(todayStr);
@@ -398,14 +345,6 @@ export default function StaysBoard() {
     return map;
   }, [data]);
 
-  const ordersByRoom = useMemo(() => {
-    const map = {};
-    for (const o of data?.orders || []) {
-      (map[o.roomId] = map[o.roomId] || []).push(o);
-    }
-    return map;
-  }, [data]);
-
   const counts = data?.statusCounts;
   const pills = [
     ["All", counts?.all, statusColors.neutral],
@@ -466,8 +405,8 @@ export default function StaysBoard() {
       )}
 
       {data && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          <Card sx={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: "0px" }}>
+          <Card sx={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, padding: "0px" }}>
             <CardContent
               sx={{
                 p: 1.5,
@@ -478,7 +417,7 @@ export default function StaysBoard() {
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, borderRight: "1px solid", pr: 1, borderColor: "divider"}}>
                   <Typography sx={{ fontWeight: 600, fontSize: "0.85rem" }}>
                   {anchorLabel}
                 </Typography>
@@ -507,7 +446,7 @@ export default function StaysBoard() {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 1.25,
+                  gap: 3.25,
                   flexWrap: "wrap",
                 }}
               >
@@ -585,14 +524,11 @@ export default function StaysBoard() {
   </Select>
 </FormControl>
                   </Box>
-                  {dates.map((d) => {
-                    const isWeekend = WEEKEND_DAYS.includes(parseLocal(d).getDay());
-                    return (
-                      <Box key={d} sx={{ ...thSx, px: isWeekend ? 0 : 0.5 }}>
-                        <DayHeader date={d} />
-                      </Box>
-                    );
-                  })}
+                  {dates.map((d) => (
+                    <Box key={d} sx={{ ...thSx }}>
+                      <DayHeader date={d} />
+                    </Box>
+                  ))}
 
                   {groups.map((g) => {
                     const isCollapsed = collapsed.has(g.id);
@@ -635,22 +571,19 @@ export default function StaysBoard() {
                             ({g.totalRooms})
                           </Typography>
                         </Box>
-                        {dates.map((d, i) => {
-                          const isWeekend = WEEKEND_DAYS.includes(parseLocal(d).getDay());
-                          return (
-                            <Box
-                              key={d}
-                              sx={{
-                                ...dataSx,
-                                px: isWeekend ? 0 : 1,
-                                py: 0.75,
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: 0.5,
-                                bgcolor: weekendBg(d),
-                              }}
-                            >
+                        {dates.map((d, i) => (
+                          <Box
+                            key={d}
+                            sx={{
+                              ...dataSx,
+                              py: 0.75,
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 0.5,
+                              bgcolor: weekendBg(d),
+                            }}
+                          >
                             <Chip
                               label={g.available[i]}
                               size="small"
@@ -676,8 +609,7 @@ export default function StaysBoard() {
                               </Typography>
                             )}
                           </Box>
-                          );
-                        })}
+                        ))}
 
                         {!isCollapsed &&
                           rooms.map((room) => (
@@ -735,11 +667,6 @@ export default function StaysBoard() {
                                     startDate={startDate}
                                   />
                                 ))}
-                                <OrderBadge
-                                  orders={ordersByRoom[room.id]}
-                                  days={DAYS}
-                                  startDate={startDate}
-                                />
                               </Box>
                             </Fragment>
                           ))}
@@ -750,22 +677,18 @@ export default function StaysBoard() {
                   <Box sx={{ ...stickyLabelSx, ...labelSx, fontWeight: 600 }}>
                     Room Occupancy %
                   </Box>
-                  {dates.map((d, i) => {
-                    const isWeekend = WEEKEND_DAYS.includes(parseLocal(d).getDay());
-                    return (
-                      <Box
-                        key={d}
-                        sx={{
-                          ...dataSx,
-                          px: isWeekend ? 0 : 1,
-                          color: "text.secondary",
-                          bgcolor: weekendBg(d),
-                        }}
-                      >
-                        {data.occupancy?.[i] ?? "—"}%
-                      </Box>
-                    );
-                  })}
+                  {dates.map((d, i) => (
+                    <Box
+                      key={d}
+                      sx={{
+                        ...dataSx,
+                        color: "text.secondary",
+                        bgcolor: weekendBg(d),
+                      }}
+                    >
+                      {data.occupancy?.[i] ?? "—"}%
+                    </Box>
+                  ))}
                 </Box>
               </Box>
             </CardContent>
