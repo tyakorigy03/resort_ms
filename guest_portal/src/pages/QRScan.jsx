@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -8,6 +8,7 @@ import {
   CardContent,
   CircularProgress,
   IconButton,
+  Snackbar,
   TextField,
   Typography,
   useTheme,
@@ -21,6 +22,7 @@ import { api, saveGuestSession } from '../api'
 
 export default function QRScan({ onToggleMode, mode }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const scannerRef = useRef(null)
   const scannerContainerRef = useRef(null)
   const [mode2, setMode2] = useState('choose')
@@ -28,6 +30,14 @@ export default function QRScan({ onToggleMode, mode }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [scannerReady, setScannerReady] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  useEffect(() => {
+    if (searchParams.get('toast') === 'not-available') {
+      setToast('The Guest App is not yet available')
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -265,6 +275,17 @@ export default function QRScan({ onToggleMode, mode }) {
           )}
         </CardContent>
       </Card>
+
+      <Snackbar
+        open={!!toast}
+        autoHideDuration={4000}
+        onClose={() => setToast(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="info" variant="filled" onClose={() => setToast(null)} sx={{ width: '100%' }}>
+          {toast}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

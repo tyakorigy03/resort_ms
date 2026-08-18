@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthProvider'
+import Landing from './Landing'
 import Login from './Login'
 import FrontDeskShell from './FrontDeskShell'
 import StaysBoard from './pages/StaysBoard'
@@ -15,7 +16,8 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace state={{ from: location }} />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     )
   }
