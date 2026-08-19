@@ -23,6 +23,8 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY)
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 async function request(path, options = {}) {
   const token = getToken()
   const headers = { ...options.headers }
@@ -31,7 +33,7 @@ async function request(path, options = {}) {
     headers['Content-Type'] = 'application/json'
     options.body = JSON.stringify(options.body)
   }
-  const res = await fetch(path, { ...options, headers })
+  const res = await fetch(API_BASE + path, { ...options, headers })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     if (res.status === 401 && token && path !== '/api/auth/login') {
