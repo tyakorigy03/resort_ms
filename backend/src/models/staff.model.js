@@ -216,12 +216,26 @@ async function findManagerByPin(pin, permission) {
   return matches[0] || null
 }
 
+async function findByPin(pin) {
+  if (!pin) return null
+  const [rows] = await pool.query(
+    'SELECT id, pin FROM staff WHERE is_active = 1 AND pin IS NOT NULL',
+  )
+  for (const row of rows) {
+    if (await bcrypt.compare(String(pin), row.pin)) {
+      return findById(row.id)
+    }
+  }
+  return null
+}
+
 module.exports = {
   findAll,
   findActiveMinimal,
   findById,
   findByQrCode,
   findByIdWithPin,
+  findByPin,
   create,
   update,
   remove,

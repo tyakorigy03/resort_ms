@@ -1,7 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const { userModel } = require('../models')
+const { userModel, staffModel } = require('../models')
 const { verifyToken } = require('../middlewares/auth')
 
 const router = express.Router()
@@ -37,6 +37,38 @@ router.post('/login', async (req, res, next) => {
     }
     const token = signToken(user)
     res.json({ token, user: publicUser(user) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/pin-login', async (req, res, next) => {
+  try {
+    const { pin } = req.body
+    if (!pin) {
+      return res.status(400).json({ message: 'PIN is required' })
+    }
+    const staff = await staffModel.findByPin(pin)
+    if (!staff) {
+      return res.status(401).json({ message: 'Invalid PIN' })
+    }
+    let tokenUser
+    if (staff.userId) {
+      const user = await userModel.findById(staff.userId)
+      if (!user || !user.isActive) {
+        return res.status(403).json({ message: 'Linked account is inactive. Contact an admin.' })
+      }
+      tokenUser = user
+    } else {
+      tokenUser = {
+        id: staff.id,
+        name: staff.name,
+        email: staff.email || null,
+        role: 'staff',
+      }
+    }
+    const token = signToken(tokenUser)
+    res.json({ token, user: publicUser(tokenUser) })
   } catch (error) {
     next(error)
   }

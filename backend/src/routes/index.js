@@ -40,6 +40,7 @@ const cashDrawerRoutes = require('./cashDrawer.routes')
 const reservationRoutes = require('./reservation.routes')
 const folioRoutes = require('./folio.routes')
 const guestRoutes = require('./guest.routes')
+const reportRoutes = require('./report.routes')
 
 const router = express.Router()
 
@@ -88,5 +89,6 @@ router.use('/cash-drawers', cashDrawerRoutes)
 router.use('/reservations', reservationRoutes)
 router.use('/folios', folioRoutes)
 router.use('/guest', guestRoutes)
+router.use('/reports', reportRoutes)
 
 module.exports = router
