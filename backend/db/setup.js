@@ -8,7 +8,7 @@ async function setup() {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    password: process.env.DB_PASSWORD ?? "",
     multipleStatements: true,
   })
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8')
