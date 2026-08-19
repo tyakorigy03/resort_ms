@@ -16,37 +16,31 @@ const INSTANCES = [
   {
     label: 'Front Desk',
     icon: <HotelIcon />,
-    port: 5176,
-    path: '/login',
     color: 'primary',
   },
   {
     label: 'Back Office',
     icon: <ComputerIcon />,
-    port: 5175,
-    path: '/',
+    url: 'https://resort-ms.vercel.app',
     color: 'primary',
   },
   {
     label: 'Guest Portal',
     icon: <StayPrimaryPortraitIcon />,
-    port: 5180,
-    path: '/',
+    url: 'https://resort-ms-1oek.vercel.app',
     color: 'primary',
     guest: true,
   },
   {
     label: 'POS',
     icon: <RestaurantIcon />,
-    port: 5173,
-    path: '/',
+    url: 'https://resort-ms-s4b4.vercel.app',
     color: 'primary',
   },
   {
     label: 'KDS',
     icon: <DevicesIcon />,
-    port: 5174,
-    path: '/',
+    url: 'https://resort-ms-ymcu-jade.vercel.app',
     color: 'primary',
   },
 ]
@@ -55,17 +49,15 @@ export default function Landing() {
   const navigate = useNavigate()
 
   function handleClick(instance) {
+    if (!instance.url) {
+      navigate('/login')
+      return
+    }
     if (instance.guest) {
-      const url = `${window.location.protocol}//${window.location.hostname}:${instance.port}${instance.path}?toast=not-available`
-      window.location.href = url
+      window.location.href = `${instance.url}?toast=not-available`
       return
     }
-    if (instance.port === 5176) {
-      navigate(instance.path)
-      return
-    }
-    const url = `${window.location.protocol}//${window.location.hostname}:${instance.port}${instance.path}`
-    window.location.href = url
+    window.location.href = instance.url
   }
 
   return (
@@ -84,7 +76,7 @@ export default function Landing() {
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
             <HotelIcon color="primary" />
             <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-              Yakin Resort
+              Resort MS
             </Typography>
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
