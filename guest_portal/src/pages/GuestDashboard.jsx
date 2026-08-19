@@ -28,6 +28,8 @@ import BedtimeIcon from '@mui/icons-material/Bedtime'
 import GroupIcon from '@mui/icons-material/Group'
 import DescriptionIcon from '@mui/icons-material/Description'
 import DoorFrontIcon from '@mui/icons-material/DoorFront'
+import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
+import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
 import { api, getGuestSession, clearGuestSession } from '../api'
 
 function formatDate(value) {
@@ -71,6 +73,7 @@ export default function GuestDashboard({ onToggleMode, mode }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [orders, setOrders] = useState([])
 
   const session = getGuestSession()
 
@@ -86,8 +89,12 @@ export default function GuestDashboard({ onToggleMode, mode }) {
     setLoading(true)
     setError(null)
     try {
-      const dashboard = await api.dashboard(session.reservationId)
+      const [dashboard, ordersData] = await Promise.all([
+        api.dashboard(session.reservationId),
+        api.orders(session.reservationId).catch(() => ({ orders: [] })),
+      ])
       setData(dashboard)
+      setOrders(ordersData.orders || [])
     } catch (err) {
       setError(err.message || 'Failed to load dashboard')
     } finally {
@@ -140,6 +147,15 @@ export default function GuestDashboard({ onToggleMode, mode }) {
           <IconButton onClick={onToggleMode} size="small" title={mode === 'dark' ? 'Light mode' : 'Dark mode'}>
             {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
           </IconButton>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<RestaurantMenuIcon />}
+            onClick={() => navigate('/menu')}
+            sx={{ ml: 1, fontSize: '0.75rem', py: 0.5, px: 1.5 }}
+          >
+            Order Food
+          </Button>
           <IconButton onClick={handleLogout} size="small" title="Sign out">
             <LogoutIcon fontSize="small" />
           </IconButton>
@@ -254,6 +270,50 @@ export default function GuestDashboard({ onToggleMode, mode }) {
                   {data.floor}
                 </Typography>
               </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {orders.length > 0 && (
+          <Card sx={{ mt: 2 }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <ShoppingBagIcon color="primary" fontSize="small" />
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Your Orders
+                </Typography>
+              </Box>
+
+              <List disablePadding>
+                {orders.map((order) => (
+                  <ListItem key={order.id} disablePadding sx={{ py: 1 }}>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {order.orderNumber}
+                          </Typography>
+                          <Chip
+                            label={order.status}
+                            size="small"
+                            color={order.status === 'paid' ? 'success' : 'default'}
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Typography variant="caption" color="text.secondary">
+                          {order.items?.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
+                          {order.createdAt && ` · ${new Date(order.createdAt).toLocaleString()}`}
+                        </Typography>
+                      }
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {formatMoney(order.total)}
+                    </Typography>
+                  </ListItem>
+                ))}
+              </List>
             </CardContent>
           </Card>
         )}

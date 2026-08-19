@@ -22,6 +22,15 @@ export const api = {
 
   dashboard: (reservationId) =>
     request(`/api/guest/dashboard/${reservationId}`),
+
+  menu: (reservationId) =>
+    request(`/api/guest/menu/${reservationId}`),
+
+  createOrder: (reservationId, items, notes) =>
+    request('/api/guest/orders', { method: 'POST', body: { reservationId, items, notes } }),
+
+  orders: (reservationId) =>
+    request(`/api/guest/orders/${reservationId}`),
 }
 
 export const SESSION_KEY = 'guest_session'

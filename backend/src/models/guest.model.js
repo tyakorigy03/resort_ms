@@ -163,4 +163,229 @@ async function guestDashboard(reservationId) {
   }
 }
 
-module.exports = { lookupByRoom, requestOtp, verifyOtp, guestDashboard }
+async function guestMenu(reservationId) {
+  const [menus] = await pool.query(
+    `SELECT m.id, m.name, m.description
+     FROM menus m
+     WHERE m.is_active = 1
+     ORDER BY m.name ASC`,
+  )
+  if (!menus.length) return []
+
+  for (const menu of menus) {
+    const [screens] = await pool.query(
+      `SELECT ms.id, ms.name
+       FROM menu_screens ms
+       WHERE ms.menu_id = ?
+       ORDER BY ms.sort_order ASC, ms.id ASC`,
+      [menu.id],
+    )
+    menu.screens = screens
+    if (screens.length) {
+      const screenIds = screens.map((s) => s.id)
+      const placeholders = screenIds.map(() => '?').join(', ')
+      const [items] = await pool.query(
+        `SELECT msi.menu_screen_id, i.id AS item_id, i.name AS item_name, i.description,
+                i.image, mp.price AS item_price
+         FROM menu_screen_items msi
+         JOIN items i ON i.id = msi.item_id
+         LEFT JOIN price_lists pl ON pl.is_default = 1
+         LEFT JOIN menu_prices mp ON mp.item_id = msi.item_id AND mp.price_list_id = pl.id
+         WHERE msi.menu_screen_id IN (${placeholders})
+         ORDER BY msi.sort_order ASC, i.name ASC`,
+        screenIds,
+      )
+      const itemsByScreen = new Map()
+      for (const item of items) {
+        if (!itemsByScreen.has(item.menu_screen_id)) itemsByScreen.set(item.menu_screen_id, [])
+        itemsByScreen.get(item.menu_screen_id).push({
+          itemId: item.item_id,
+          name: item.item_name,
+          description: item.description,
+          image: item.image,
+          price: item.item_price === null ? null : Number(item.item_price),
+        })
+      }
+      for (const screen of screens) {
+        screen.items = itemsByScreen.get(screen.id) ?? []
+      }
+    }
+  }
+  return menus
+}
+
+async function createGuestOrder(reservationId, { items, notes }) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw httpError('Order must contain at least one item', 400)
+  }
+
+  const [resRows] = await pool.query(
+    `SELECT rv.id, rv.customer_id, rv.room_id
+     FROM reservations rv
+     WHERE rv.id = ? AND rv.status IN ('booked', 'checked_in')`,
+    [reservationId],
+  )
+  if (!resRows.length) throw httpError('Reservation not found or not active', 404)
+  const reservation = resRows[0]
+
+  const [folioRows] = await pool.query(
+    `SELECT id FROM folios WHERE reservation_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1`,
+    [reservationId],
+  )
+  let folioId
+  if (folioRows.length) {
+    folioId = folioRows[0].id
+  } else {
+    const [newFolio] = await pool.query(
+      'INSERT INTO folios (reservation_id, customer_id, room_id, status) VALUES (?, ?, ?, ?)',
+      [reservationId, reservation.customer_id, reservation.room_id, 'open'],
+    )
+    folioId = newFolio.insertId
+  }
+
+  const [outletRows] = await pool.query('SELECT id FROM outlets ORDER BY id ASC LIMIT 1')
+  const outletId = outletRows[0]?.id
+  if (!outletId) throw httpError('No outlet configured', 500)
+
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+
+    const [dateRow] = await conn.query("SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d")
+    const d = dateRow[0].d
+    const [maxRow] = await conn.query(
+      "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(order_number, '-', -1) AS UNSIGNED)), 0) AS n FROM pos_orders WHERE DATE(created_at) = CURDATE()",
+    )
+    const orderNumber = `ORD-${d}-${String(Number(maxRow[0].n) + 1).padStart(4, '0')}`
+
+    const [orderResult] = await conn.query(
+      `INSERT INTO pos_orders
+         (order_number, outlet_id, customer_id, status, order_type, covers, notes)
+       VALUES (?, ?, ?, 'open', 'room_charge', 1, ?)`,
+      [orderNumber, outletId, reservation.customer_id, notes || null],
+    )
+    const orderId = orderResult.insertId
+
+    const [courseResult] = await conn.query(
+      "INSERT INTO order_courses (order_id, course_number, name) VALUES (?, 1, 'Room Service')",
+      [orderId],
+    )
+    const courseId = courseResult.insertId
+
+    let subtotal = 0
+    for (const item of items) {
+      const itemId = Number(item.itemId)
+      const qty = Number(item.quantity) || 1
+      if (!itemId) throw httpError('Invalid item', 400)
+
+      const [itemRows] = await conn.query('SELECT id, name FROM items WHERE id = ?', [itemId])
+      if (!itemRows.length) throw httpError(`Item ${itemId} not found`, 400)
+
+      const [priceRows] = await conn.query(
+        `SELECT mp.price FROM menu_prices mp
+         JOIN price_lists pl ON pl.id = mp.price_list_id
+         WHERE mp.item_id = ? AND pl.is_default = 1 LIMIT 1`,
+        [itemId],
+      )
+      const unitPrice = priceRows[0] ? Number(priceRows[0].price) : 0
+      const lineTotal = Math.round(unitPrice * qty * 100) / 100
+      subtotal += lineTotal
+
+      await conn.query(
+        `INSERT INTO pos_order_items (order_id, item_id, item_name, unit_price, quantity, line_total, course_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, itemId, itemRows[0].name, unitPrice, qty, lineTotal, courseId],
+      )
+    }
+
+    await conn.query('UPDATE pos_orders SET subtotal = ?, total = ? WHERE id = ?', [subtotal, subtotal, orderId])
+
+    await conn.query(
+      `INSERT INTO folio_line_items (folio_id, type, description, amount, source_order_id)
+       VALUES (?, 'pos_charge', ?, ?, ?)`,
+      [folioId, `Room Service - ${orderNumber}`, subtotal, orderId],
+    )
+    await conn.query(
+      'UPDATE folios SET balance = (SELECT COALESCE(SUM(amount), 0) FROM folio_line_items WHERE folio_id = ?) WHERE id = ?',
+      [folioId, folioId],
+    )
+
+    await conn.query(
+      "UPDATE pos_orders SET status = 'paid', payment_method = 'room_charge', completed_at = NOW() WHERE id = ?",
+      [orderId],
+    )
+
+    await conn.commit()
+
+    const [resultRows] = await conn.query(
+      `SELECT o.id, o.order_number, o.status, o.subtotal, o.total, o.created_at
+       FROM pos_orders o WHERE o.id = ?`,
+      [orderId],
+    )
+    return {
+      orderId: resultRows[0].id,
+      orderNumber: resultRows[0].order_number,
+      status: resultRows[0].status,
+      total: Number(resultRows[0].total),
+      createdAt: resultRows[0].created_at,
+    }
+  } catch (error) {
+    await conn.rollback()
+    throw error
+  } finally {
+    conn.release()
+  }
+}
+
+async function guestOrders(reservationId) {
+  const [rows] = await pool.query(
+    `SELECT o.id, o.order_number, o.status, o.subtotal, o.total, o.payment_method,
+            o.created_at, o.completed_at
+     FROM pos_orders o
+     WHERE o.customer_id = (SELECT customer_id FROM reservations WHERE id = ?)
+       AND o.order_type = 'room_charge'
+     ORDER BY o.created_at DESC
+     LIMIT 20`,
+    [reservationId],
+  )
+
+  const orders = rows.map((r) => ({
+    id: r.id,
+    orderNumber: r.order_number,
+    status: r.status,
+    subtotal: Number(r.subtotal),
+    total: Number(r.total),
+    paymentMethod: r.payment_method,
+    createdAt: r.created_at,
+    completedAt: r.completed_at,
+  }))
+
+  if (orders.length) {
+    const ids = orders.map((o) => o.id)
+    const placeholders = ids.map(() => '?').join(', ')
+    const [itemRows] = await pool.query(
+      `SELECT order_id, item_name, quantity, unit_price, line_total
+       FROM pos_order_items
+       WHERE order_id IN (${placeholders}) AND is_station_copy = 0
+       ORDER BY id ASC`,
+      ids,
+    )
+    const itemsByOrder = new Map()
+    for (const row of itemRows) {
+      if (!itemsByOrder.has(row.order_id)) itemsByOrder.set(row.order_id, [])
+      itemsByOrder.get(row.order_id).push({
+        name: row.item_name,
+        quantity: Number(row.quantity),
+        unitPrice: Number(row.unit_price),
+        lineTotal: Number(row.line_total),
+      })
+    }
+    for (const order of orders) {
+      order.items = itemsByOrder.get(order.id) ?? []
+    }
+  }
+
+  return orders
+}
+
+module.exports = { lookupByRoom, requestOtp, verifyOtp, guestDashboard, guestMenu, createGuestOrder, guestOrders }

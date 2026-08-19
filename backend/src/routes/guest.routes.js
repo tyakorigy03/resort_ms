@@ -44,4 +44,33 @@ router.get('/dashboard/:reservationId', async (req, res, next) => {
   }
 })
 
+router.get('/menu/:reservationId', async (req, res, next) => {
+  try {
+    const menu = await guestModel.guestMenu(Number(req.params.reservationId))
+    res.json({ menus: menu })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.post('/orders', async (req, res, next) => {
+  try {
+    const { reservationId, items, notes } = req.body
+    if (!reservationId) return res.status(400).json({ message: 'reservationId is required' })
+    const order = await guestModel.createGuestOrder(reservationId, { items, notes })
+    res.json(order)
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/orders/:reservationId', async (req, res, next) => {
+  try {
+    const orders = await guestModel.guestOrders(Number(req.params.reservationId))
+    res.json({ orders })
+  } catch (err) {
+    next(err)
+  }
+})
+
 module.exports = router
