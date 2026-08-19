@@ -8,11 +8,11 @@ export default defineConfig({
     port: 5175,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://api.chumbaplus.com/',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'https://api.chumbaplus.com/',
         changeOrigin: true,
       },
     },
