@@ -308,8 +308,8 @@ function MainLayout() {
       </Box>
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
-
-      <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{display: "flex"}}>
+<Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
           <AssessmentIcon fontSize="small" />
         </Avatar>
@@ -328,6 +328,8 @@ function MainLayout() {
           <LogoutIcon fontSize="small" />
         </IconButton>
       </Box>
+        </Box>
+      
     </Box>
   )
 

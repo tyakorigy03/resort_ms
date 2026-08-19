@@ -11,6 +11,7 @@ import ComputerIcon from '@mui/icons-material/Computer'
 import RestaurantIcon from '@mui/icons-material/Restaurant'
 import DevicesIcon from '@mui/icons-material/Devices'
 import StayPrimaryPortraitIcon from '@mui/icons-material/StayPrimaryPortrait'
+import AssessmentIcon from '@mui/icons-material/Assessment'
 
 const INSTANCES = [
   {
@@ -41,6 +42,12 @@ const INSTANCES = [
     label: 'KDS',
     icon: <DevicesIcon />,
     url: 'https://resort-ms-ymcu-jade.vercel.app',
+    color: 'primary',
+  },
+  {
+    label: 'iReports',
+    icon: <AssessmentIcon />,
+    url: 'https://resort-ms-27mi.vercel.app',
     color: 'primary',
   },
 ]
