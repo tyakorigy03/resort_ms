@@ -6,7 +6,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://api.chumbaplus.com',
+        // target: 'https://api.chumbaplus.com',
+        target: 'http://localhost:5000',
+
 
         changeOrigin: true,
       },
