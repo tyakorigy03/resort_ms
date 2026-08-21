@@ -19,7 +19,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
-import HotelIcon from '@mui/icons-material/Hotel'
+import logo from '../assets/logo.png'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import LogoutIcon from '@mui/icons-material/Logout'
@@ -134,9 +134,7 @@ export default function GuestDashboard({ onToggleMode, mode }) {
     <Box sx={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <AppBar position="static" elevation={0} color="transparent" sx={{ bgcolor: 'background.paper' }}>
         <Toolbar>
-          <Avatar sx={{ bgcolor: 'primary.main', color: '#fff', width: 38, height: 38 }}>
-            <HotelIcon fontSize="small" />
-          </Avatar>
+          <Box component="img" src={logo} alt="Logo" sx={{ width: 38, height: 38, objectFit: 'contain' }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 700, ml: 1 }}>
             Guest Portal
           </Typography>

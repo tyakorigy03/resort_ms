@@ -9,6 +9,10 @@ export function getExecutiveDashboard() {
   return request('/api/reports')
 }
 
+export function getReservationsDashboard() {
+  return request('/api/reservations/dashboard')
+}
+
 export function getRevenueTrend(days) {
   return request(`/api/reports/revenue-trend${qs({ days })}`)
 }

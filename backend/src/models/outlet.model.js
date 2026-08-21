@@ -6,6 +6,7 @@ function mapOutlet(row) {
   return {
     id: row.id,
     name: row.name,
+    type: row.type,
     code: row.code,
     address: row.address,
     phone: row.phone,
@@ -17,7 +18,7 @@ function mapOutlet(row) {
 
 async function findAll() {
   const [rows] = await pool.query(
-    `SELECT o.id, o.name, o.code, o.address, o.phone, o.is_active, o.created_at,
+    `SELECT o.id, o.name, o.type, o.code, o.address, o.phone, o.is_active, o.created_at,
             (SELECT COUNT(*) FROM devices d WHERE d.outlet_id = o.id) AS device_count
      FROM outlets o ORDER BY o.name ASC`,
   )
@@ -26,7 +27,7 @@ async function findAll() {
 
 async function findById(id) {
   const [rows] = await pool.query(
-    `SELECT o.id, o.name, o.code, o.address, o.phone, o.is_active, o.created_at,
+    `SELECT o.id, o.name, o.type, o.code, o.address, o.phone, o.is_active, o.created_at,
             (SELECT COUNT(*) FROM devices d WHERE d.outlet_id = o.id) AS device_count
      FROM outlets o WHERE o.id = ?`,
     [id],
@@ -34,18 +35,18 @@ async function findById(id) {
   return mapOutlet(rows[0])
 }
 
-async function create({ name, code, address, phone }) {
+async function create({ name, type, code, address, phone }) {
   const [result] = await pool.query(
-    'INSERT INTO outlets (name, code, address, phone) VALUES (?, ?, ?, ?)',
-    [name, code || null, address || null, phone || null],
+    'INSERT INTO outlets (name, type, code, address, phone) VALUES (?, ?, ?, ?, ?)',
+    [name, type || 'restaurant', code || null, address || null, phone || null],
   )
   return findById(result.insertId)
 }
 
-async function update(id, { name, code, address, phone, isActive }) {
+async function update(id, { name, type, code, address, phone, isActive }) {
   const [result] = await pool.query(
-    'UPDATE outlets SET name = ?, code = ?, address = ?, phone = ?, is_active = ? WHERE id = ?',
-    [name, code || null, address || null, phone || null, isActive ? 1 : 0, id],
+    'UPDATE outlets SET name = ?, type = ?, code = ?, address = ?, phone = ?, is_active = ? WHERE id = ?',
+    [name, type || 'restaurant', code || null, address || null, phone || null, isActive ? 1 : 0, id],
   )
   if (result.affectedRows === 0) throw httpError('Outlet not found', 404)
   return findById(id)

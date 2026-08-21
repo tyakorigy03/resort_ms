@@ -41,6 +41,7 @@ const reservationRoutes = require('./reservation.routes')
 const folioRoutes = require('./folio.routes')
 const guestRoutes = require('./guest.routes')
 const reportRoutes = require('./report.routes')
+const sseRoutes = require('./sse.routes')
 
 const router = express.Router()
 
@@ -90,5 +91,6 @@ router.use('/reservations', reservationRoutes)
 router.use('/folios', folioRoutes)
 router.use('/guest', guestRoutes)
 router.use('/reports', reportRoutes)
+router.use('/sse', sseRoutes)
 
 module.exports = router

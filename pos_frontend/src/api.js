@@ -38,7 +38,10 @@ async function request(path, options = {}) {
   if (!res.ok) {
     if (res.status === 401 && token && path !== '/api/devices/authenticate') {
       clearSession()
-      window.location.reload()
+      if (!window.__pos_reloading) {
+        window.__pos_reloading = true
+        window.location.href = '/login'
+      }
     }
     throw new Error(data.message || 'Request failed')
   }
@@ -106,5 +109,34 @@ export const api = {
       if (v !== undefined && v !== null && v !== '') qs.set(k, v)
     })
     return request(`/api/folios/search?${qs}`)
+  },
+
+  connectSSE(onOrderUpdate) {
+    const token = getToken()
+    if (!token) return () => {}
+    const url = `${API_BASE}/api/sse/pos-orders`
+    let closed = false
+    let timer = null
+    let es = null
+
+    function connect() {
+      if (closed) return
+      es = new EventSource(`${url}?token=${token}`)
+      es.addEventListener('order-update', (e) => {
+        try { onOrderUpdate(JSON.parse(e.data)) } catch {}
+      })
+      es.onerror = () => {
+        es.close()
+        if (!closed) timer = setTimeout(connect, 3000)
+      }
+    }
+
+    connect()
+
+    return () => {
+      closed = true
+      clearTimeout(timer)
+      if (es) es.close()
+    }
   },
 }

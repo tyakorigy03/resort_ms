@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Alert,
-  AppBar,
-  Avatar,
   Box,
   Button,
   Card,
@@ -15,28 +13,26 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Divider,
   IconButton,
+  Paper,
   TextField,
-  Toolbar,
   Typography,
 } from '@mui/material'
-import HotelIcon from '@mui/icons-material/Hotel'
-import DarkModeIcon from '@mui/icons-material/DarkMode'
-import LightModeIcon from '@mui/icons-material/LightMode'
-import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AddIcon from '@mui/icons-material/Add'
 import RemoveIcon from '@mui/icons-material/Remove'
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu'
+import RestaurantIcon from '@mui/icons-material/Restaurant'
 import { api, getGuestSession } from '../api'
+
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function formatMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value || 0))
 }
 
-export default function MenuBrowser({ onToggleMode, mode }) {
+export default function MenuBrowser() {
   const navigate = useNavigate()
   const session = getGuestSession()
   const [menus, setMenus] = useState([])
@@ -126,10 +122,11 @@ export default function MenuBrowser({ onToggleMode, mode }) {
   const screens = currentMenu?.screens || []
   const currentScreen = screens.find((s) => s.id === activeScreen)
   const screenItems = currentScreen?.items || []
+  const count = cartCount()
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 8 }}>
         <CircularProgress />
       </Box>
     )
@@ -137,11 +134,11 @@ export default function MenuBrowser({ onToggleMode, mode }) {
 
   if (error && !menus.length) {
     return (
-      <Box sx={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
         <Card sx={{ width: '100%', maxWidth: 400 }}>
           <CardContent sx={{ textAlign: 'center', p: 4 }}>
             <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-            <Button variant="outlined" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+            <Button variant="outlined" onClick={() => navigate('/home')}>Back to Home</Button>
           </CardContent>
         </Card>
       </Box>
@@ -149,24 +146,8 @@ export default function MenuBrowser({ onToggleMode, mode }) {
   }
 
   return (
-    <Box sx={{ minHeight: '100svh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
-      <AppBar position="static" elevation={0} color="transparent" sx={{ bgcolor: 'background.paper' }}>
-        <Toolbar>
-          <IconButton onClick={() => navigate('/dashboard')} size="small" sx={{ mr: 1 }}>
-            <ArrowBackIcon fontSize="small" />
-          </IconButton>
-          <RestaurantMenuIcon color="primary" fontSize="small" />
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, ml: 0.5 }}>
-            Order Room Service
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <IconButton onClick={onToggleMode} size="small" title={mode === 'dark' ? 'Light mode' : 'Dark mode'}>
-            {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-          </IconButton>
-        </Toolbar>
-      </AppBar>
-
-      <Box sx={{ flexGrow: 1, overflow: 'auto', pb: cartCount() ? 12 : 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', bgcolor: 'background.default', height: '100%' }}>
+      <Box sx={{ flex: 1, overflow: 'auto', pb: count ? 16 : 2 }}>
         {error && (
           <Alert severity="error" sx={{ mx: 2, mt: 2, fontSize: '0.85rem' }} onClose={() => setError(null)}>
             {error}
@@ -207,10 +188,45 @@ export default function MenuBrowser({ onToggleMode, mode }) {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   {screenItems.map((item) => {
                     const inCart = cart[item.itemId]
+                    const imgSrc = item.image ? `${API_BASE}${item.image}` : null
                     return (
                       <Card key={item.itemId} variant="outlined">
                         <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                            {imgSrc ? (
+                              <Box
+                                component="img"
+                                src={imgSrc}
+                                alt={item.name}
+                                sx={{
+                                  width: 80,
+                                  height: 80,
+                                  borderRadius: 1.5,
+                                  objectFit: 'cover',
+                                  flexShrink: 0,
+                                  bgcolor: 'action.hover',
+                                }}
+                                onError={(e) => {
+                                  e.target.style.display = 'none'
+                                  e.target.nextSibling.style.display = 'flex'
+                                }}
+                              />
+                            ) : null}
+                            <Box
+                              sx={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: 1.5,
+                                bgcolor: 'action.hover',
+                                display: imgSrc ? 'none' : 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <RestaurantIcon sx={{ fontSize: 32, color: 'text.disabled' }} />
+                            </Box>
+
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                               <Typography variant="body1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
                                 {item.name}
@@ -220,38 +236,39 @@ export default function MenuBrowser({ onToggleMode, mode }) {
                                   {item.description}
                                 </Typography>
                               )}
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main', mt: 0.5 }}>
-                                {item.price !== null ? formatMoney(item.price) : 'Price TBD'}
-                              </Typography>
-                            </Box>
-
-                            {item.price !== null && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 2, flexShrink: 0 }}>
-                                {inCart ? (
-                                  <>
-                                    <IconButton size="small" onClick={() => removeFromCart(item.itemId)} sx={{ border: 1, borderColor: 'divider' }}>
-                                      <RemoveIcon fontSize="small" />
-                                    </IconButton>
-                                    <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 24, textAlign: 'center' }}>
-                                      {inCart.quantity}
-                                    </Typography>
-                                    <IconButton size="small" onClick={() => addToCart(item)} sx={{ border: 1, borderColor: 'divider' }}>
-                                      <AddIcon fontSize="small" />
-                                    </IconButton>
-                                  </>
-                                ) : (
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<AddIcon />}
-                                    onClick={() => addToCart(item)}
-                                    sx={{ fontSize: '0.75rem', py: 0.5 }}
-                                  >
-                                    Add
-                                  </Button>
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                  {item.price !== null ? formatMoney(item.price) : 'Price TBD'}
+                                </Typography>
+                                {item.price !== null && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    {inCart ? (
+                                      <>
+                                        <IconButton size="small" onClick={() => removeFromCart(item.itemId)} sx={{ border: 1, borderColor: 'divider', width: 28, height: 28 }}>
+                                          <RemoveIcon sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                        <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>
+                                          {inCart.quantity}
+                                        </Typography>
+                                        <IconButton size="small" onClick={() => addToCart(item)} sx={{ border: 1, borderColor: 'divider', width: 28, height: 28 }}>
+                                          <AddIcon sx={{ fontSize: 16 }} />
+                                        </IconButton>
+                                      </>
+                                    ) : (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon sx={{ fontSize: 14 }} />}
+                                        onClick={() => addToCart(item)}
+                                        sx={{ fontSize: '0.72rem', py: 0.4, px: 1 }}
+                                      >
+                                        Add
+                                      </Button>
+                                    )}
+                                  </Box>
                                 )}
                               </Box>
-                            )}
+                            </Box>
                           </Box>
                         </CardContent>
                       </Card>
@@ -264,22 +281,25 @@ export default function MenuBrowser({ onToggleMode, mode }) {
         )}
       </Box>
 
-      {cartCount() > 0 && (
-        <Box
+      {count > 0 && (
+        <Paper
+          elevation={6}
           sx={{
-            position: 'sticky',
+            position: 'fixed',
             bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 1300,
             bgcolor: 'background.paper',
             borderTop: 1,
             borderColor: 'divider',
             p: 2,
-            boxShadow: 4,
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
             <ShoppingCartIcon color="primary" fontSize="small" />
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {cartCount()} item{cartCount() === 1 ? '' : 's'}
+              {count} item{count === 1 ? '' : 's'}
             </Typography>
             <Box sx={{ flexGrow: 1 }} />
             <Typography variant="body1" sx={{ fontWeight: 700 }}>
@@ -302,17 +322,17 @@ export default function MenuBrowser({ onToggleMode, mode }) {
             variant="contained"
             fullWidth
             size="large"
-            disabled={ordering || !cartCount()}
+            disabled={ordering || !count}
             onClick={placeOrder}
             sx={{ py: 1.3, textTransform: 'uppercase', fontWeight: 700 }}
             startIcon={ordering ? <CircularProgress size={18} color="inherit" /> : <CheckCircleIcon />}
           >
             {ordering ? 'Placing Order…' : `Place Order · ${formatMoney(cartTotal())}`}
           </Button>
-        </Box>
+        </Paper>
       )}
 
-      <Dialog open={!!orderSuccess} onClose={() => { setOrderSuccess(null); navigate('/dashboard') }} maxWidth="xs" fullWidth>
+      <Dialog open={!!orderSuccess} onClose={() => { setOrderSuccess(null); navigate('/home') }} maxWidth="xs" fullWidth>
         <DialogContent sx={{ textAlign: 'center', pt: 4 }}>
           <CheckCircleIcon sx={{ fontSize: 56, color: 'success.main', mb: 2 }} />
           <DialogTitle sx={{ pb: 1 }}>Order Placed!</DialogTitle>
@@ -323,8 +343,8 @@ export default function MenuBrowser({ onToggleMode, mode }) {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
-          <Button variant="contained" onClick={() => { setOrderSuccess(null); navigate('/dashboard') }}>
-            Back to Dashboard
+          <Button variant="contained" onClick={() => { setOrderSuccess(null); navigate('/home') }}>
+            Back to Home
           </Button>
         </DialogActions>
       </Dialog>

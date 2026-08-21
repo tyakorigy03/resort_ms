@@ -1,6 +1,7 @@
 const express = require('express')
 const { posOrderModel, orderCourseModel, salePeriodModel } = require('../models')
 const { verifyDevice, verifyAny } = require('../middlewares/auth')
+const sse = require('../utils/sse')
 
 const router = express.Router()
 
@@ -78,6 +79,7 @@ router.put('/:id', verifyDevice, async (req, res, next) => {
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await posOrderModel.updateOrder(order.id, req.body))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -89,6 +91,7 @@ router.post('/:id/items', verifyDevice, async (req, res, next) => {
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.status(201).json(await posOrderModel.addItems(order.id, req.body.items))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -100,6 +103,7 @@ router.delete('/:id/items/:itemId', verifyDevice, async (req, res, next) => {
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await posOrderModel.removeItem(order.id, req.params.itemId))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -111,6 +115,7 @@ router.post('/:id/items/:itemId/refund', verifyDevice, async (req, res, next) =>
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await posOrderModel.refundItem(order.id, req.params.itemId))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -122,6 +127,7 @@ router.patch('/:id/items/:itemId/move', verifyDevice, async (req, res, next) => 
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await posOrderModel.moveItem(order.id, req.params.itemId, req.body))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -133,6 +139,7 @@ router.post('/:id/courses', verifyDevice, async (req, res, next) => {
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.status(201).json(await orderCourseModel.addCourse(order.id))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -144,6 +151,7 @@ router.post('/:id/courses/:courseId/fire', verifyDevice, async (req, res, next) 
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await orderCourseModel.fireCourse(order.id, req.params.courseId))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -155,6 +163,7 @@ router.post('/:id/courses/:courseId/serve', verifyDevice, async (req, res, next)
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await orderCourseModel.serveCourse(order.id, req.params.courseId))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -166,6 +175,7 @@ router.patch('/:id/courses/:courseId/status', verifyDevice, async (req, res, nex
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await orderCourseModel.setStatus(order.id, req.params.courseId, req.body.status))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -177,6 +187,7 @@ router.post('/:id/split', verifyDevice, async (req, res, next) => {
     const order = await loadOrder(req.params.id, req.device.outletId)
     if (!order) return res.status(404).json({ message: 'Order not found' })
     res.json(await posOrderModel.splitCheck(order.id))
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }
@@ -199,6 +210,7 @@ router.post('/:id/checkout', verifyDevice, async (req, res, next) => {
         folioId: req.body.folioId,
       }),
     )
+    sse.broadcastOrderChanged(order.id)
   } catch (error) {
     next(error)
   }

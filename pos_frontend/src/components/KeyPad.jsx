@@ -9,7 +9,7 @@ export default function KeyPad({ onKey, disabled, compact = false }) {
         <Grid key={i} size={4}>
           <Button
             fullWidth
-            variant="outlined"
+            variant="soft"
             sx={{ height: compact ? 42 : 54, fontSize: compact ? 17 : 22, fontWeight: 600 }}
             disabled={disabled || !key}
             onClick={() => onKey(key === 'back' ? 'back' : key)}

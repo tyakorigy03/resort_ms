@@ -44,6 +44,15 @@ router.get('/dashboard/:reservationId', async (req, res, next) => {
   }
 })
 
+router.get('/outlets', async (req, res, next) => {
+  try {
+    const outlets = await guestModel.guestOutlets()
+    res.json(outlets)
+  } catch (err) {
+    next(err)
+  }
+})
+
 router.get('/menu/:reservationId', async (req, res, next) => {
   try {
     const menu = await guestModel.guestMenu(Number(req.params.reservationId))

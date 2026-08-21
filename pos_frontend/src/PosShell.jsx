@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   AppBar,
@@ -62,7 +62,46 @@ export default function PosShell({ device, onLogout, children }) {
     prevShiftRef.current = myShift
   }, [myShift, navigate])
 
-  async function refresh() {
+  useEffect(() => {
+    if (myShift) saveMyShift(myShift)
+    else clearMyShift()
+  }, [myShift])
+
+  useEffect(() => {
+    let ignore = false
+    async function run() {
+      try {
+        const [currentPeriod, activeShifts, orders] = await Promise.all([
+          api.salePeriodCurrent(),
+          api.clockActive(),
+          api.ordersToday(),
+        ])
+        if (ignore) return
+        setPeriod(currentPeriod)
+        setToday({
+          count: orders.length,
+          total: orders.reduce((s, o) => s + o.total, 0),
+        })
+        if (myShift && !activeShifts.some((s) => s.id === myShift.id)) {
+          setMyShift(null)
+          clearMyShift()
+        }
+      } catch {
+        /* shell keeps working; screens surface errors */
+      }
+    }
+    run()
+    const timer = setInterval(() => setClock(new Date()), 1000)
+    return () => { ignore = true; clearInterval(timer) }
+  }, [])
+
+  function logout() {
+    clearSession()
+    clearMyShift()
+    onLogout()
+  }
+
+  const refresh = useCallback(async () => {
     try {
       const [currentPeriod, activeShifts, orders] = await Promise.all([
         api.salePeriodCurrent(),
@@ -74,31 +113,17 @@ export default function PosShell({ device, onLogout, children }) {
         count: orders.length,
         total: orders.reduce((s, o) => s + o.total, 0),
       })
-      if (myShift && !activeShifts.some((s) => s.id === myShift.id)) {
-        setMyShift(null)
-        clearMyShift()
-      }
+      setMyShift((prev) => {
+        if (prev && !activeShifts.some((s) => s.id === prev.id)) {
+          clearMyShift()
+          return null
+        }
+        return prev
+      })
     } catch {
       /* shell keeps working; screens surface errors */
     }
-  }
-
-  useEffect(() => {
-    if (myShift) saveMyShift(myShift)
-    else clearMyShift()
-  }, [myShift])
-
-  useEffect(() => {
-    refresh()
-    const timer = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(timer)
   }, [])
-
-  function logout() {
-    clearSession()
-    clearMyShift()
-    onLogout()
-  }
 
   const value = useMemo(
     () => ({
@@ -112,7 +137,7 @@ export default function PosShell({ device, onLogout, children }) {
       openClock: () => setDialog('staff'),
       openPeriod: () => setDialog('period'),
     }),
-    [device, period, myShift, today],
+    [device, period, myShift, today, refresh],
   )
 
   const currentTab = NAV.find((n) => location.pathname.startsWith(n.path))?.path || '/register'

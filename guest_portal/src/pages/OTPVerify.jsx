@@ -113,7 +113,7 @@ export default function OTPVerify({ onToggleMode, mode }) {
       await api.verifyOtp(resId, code)
       setSuccess(true)
       saveGuestSession({ reservationId: resId, verified: true })
-      setTimeout(() => navigate('/dashboard'), 800)
+      setTimeout(() => navigate('/home'), 800)
     } catch (err) {
       setError(err.message || 'Invalid code')
       setDigits(['', '', '', '', '', ''])

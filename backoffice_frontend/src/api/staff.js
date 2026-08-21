@@ -8,6 +8,35 @@ export function listStaffRoles() {
   return request('/api/staff/roles')
 }
 
+export function listRolesDetailed() {
+  return request('/api/staff/roles/detailed')
+}
+
+export function createRole(data) {
+  return request('/api/staff/roles', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateRole(id, data) {
+  return request(`/api/staff/roles/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteRole(id) {
+  return request(`/api/staff/roles/${id}`, { method: 'DELETE' })
+}
+
+export function setRolePermissions(roleId, permissions) {
+  return request(`/api/staff/roles/${roleId}/permissions`, {
+    method: 'PUT',
+    body: JSON.stringify({ permissions }),
+  })
+}
+
 export function getStaff(id) {
   return request(`/api/staff/${id}`)
 }

@@ -1,60 +1,125 @@
 const { pool } = require('../config/db')
 
 async function executiveDashboard() {
-  const [pos] = await pool.query(`
+  const [posToday] = await pool.query(`
     SELECT
-      IFNULL(SUM(total), 0) AS today_revenue,
-      COUNT(*) AS today_order_count
+      IFNULL(SUM(total + IFNULL(tip, 0)), 0) AS revenue,
+      COUNT(*) AS order_count
     FROM pos_orders
-    WHERE DATE(created_at) = CURDATE()
+    WHERE status = 'paid' AND DATE(created_at) = CURDATE()
   `)
 
-  const [openOrders] = await pool.query(`
-    SELECT COUNT(*) AS open_orders
+  const [posYesterday] = await pool.query(`
+    SELECT
+      IFNULL(SUM(total + IFNULL(tip, 0)), 0) AS revenue,
+      COUNT(*) AS order_count
     FROM pos_orders
-    WHERE DATE(created_at) = CURDATE()
-      AND status NOT IN ('paid', 'void')
+    WHERE status = 'paid' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+  `)
+
+  const [roomToday] = await pool.query(`
+    SELECT IFNULL(SUM(fl.amount), 0) AS revenue
+    FROM folio_line_items fl
+    JOIN folios f ON f.id = fl.folio_id
+    WHERE fl.type = 'room_charge' AND DATE(fl.created_at) = CURDATE()
+  `)
+
+  const [roomYesterday] = await pool.query(`
+    SELECT IFNULL(SUM(fl.amount), 0) AS revenue
+    FROM folio_line_items fl
+    JOIN folios f ON f.id = fl.folio_id
+    WHERE fl.type = 'room_charge' AND DATE(fl.created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+  `)
+
+  const [occupancy] = await pool.query(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(status = 'occupied') AS occupied,
+      SUM(status = 'available' AND housekeeping_status = 'dirty') AS dirty,
+      SUM(status = 'available' AND housekeeping_status = 'clean') AS clean
+    FROM rooms WHERE is_active = 1
   `)
 
   const [inHouse] = await pool.query(`
-    SELECT COUNT(*) AS in_house_guests
-    FROM reservations
-    WHERE status = 'checked_in'
+    SELECT COUNT(*) AS count
+    FROM reservations WHERE status = 'checked_in'
   `)
 
   const [arrivals] = await pool.query(`
-    SELECT COUNT(*) AS arrivals_today
+    SELECT COUNT(*) AS count
     FROM reservations
     WHERE check_in_date = CURDATE()
       AND status IN ('booked', 'checked_in')
   `)
 
   const [departures] = await pool.query(`
-    SELECT COUNT(*) AS departures_today
+    SELECT COUNT(*) AS count
     FROM reservations
     WHERE check_out_date = CURDATE()
       AND status IN ('checked_in', 'checked_out')
   `)
 
-  const [pendingPO] = await pool.query(`
-    SELECT COUNT(*) AS pending_purchase_orders
-    FROM purchases
-    WHERE status = 'sent'
+  const [folioBalance] = await pool.query(`
+    SELECT IFNULL(SUM(balance), 0) AS balance
+    FROM folios WHERE status = 'open'
   `)
 
+  const [pendingPO] = await pool.query(`
+    SELECT COUNT(*) AS count
+    FROM purchases WHERE status = 'sent'
+  `)
+
+  const [roomsByType] = await pool.query(`
+    SELECT
+      rt.name AS type_name,
+      COUNT(r.id) AS total,
+      SUM(r.status = 'occupied') AS occupied,
+      SUM(r.status = 'available' AND r.housekeeping_status = 'dirty') AS dirty,
+      SUM(r.status = 'available' AND r.housekeeping_status = 'clean') AS clean
+    FROM room_types rt
+    JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = 1
+    GROUP BY rt.id, rt.name
+    ORDER BY rt.name ASC
+  `)
+
+  const totalRooms = occupancy[0].total || 1
+  const occupiedRooms = occupancy[0].occupied || 0
+  const dirtyRooms = occupancy[0].dirty || 0
+  const cleanRooms = occupancy[0].clean || 0
+  const totalPosRevenue = Number(posToday[0].revenue) || 0
+  const totalRoomRevenue = Number(roomToday[0].revenue) || 0
+
   return {
-    pos: {
-      today_revenue: pos[0].today_revenue,
-      today_order_count: pos[0].today_order_count,
-      open_orders: openOrders[0].open_orders,
+    revenue: {
+      total: totalPosRevenue + totalRoomRevenue,
+      pos: totalPosRevenue,
+      rooms: totalRoomRevenue,
+      yesterday_total: (Number(posYesterday[0].revenue) || 0) + (Number(roomYesterday[0].revenue) || 0),
+      yesterday_pos: Number(posYesterday[0].revenue) || 0,
+      yesterday_rooms: Number(roomYesterday[0].revenue) || 0,
     },
+    occupancy: {
+      total: totalRooms,
+      occupied: occupiedRooms,
+      dirty: dirtyRooms,
+      clean: cleanRooms,
+      percentage: Math.round((occupiedRooms / totalRooms) * 100),
+    },
+    rooms_by_type: roomsByType.map((r) => ({
+      type_name: r.type_name,
+      total: r.total,
+      occupied: Number(r.occupied) || 0,
+      dirty: Number(r.dirty) || 0,
+      clean: Number(r.clean) || 0,
+    })),
     front_desk: {
-      in_house_guests: inHouse[0].in_house_guests,
-      arrivals_today: arrivals[0].arrivals_today,
-      departures_today: departures[0].departures_today,
+      in_house: inHouse[0].count,
+      arrivals_today: arrivals[0].count,
+      departures_today: departures[0].count,
     },
-    inventory: {
-      pending_purchase_orders: pendingPO[0].pending_purchase_orders,
+    operations: {
+      open_folio_balance: folioBalance[0].balance,
+      pending_purchase_orders: pendingPO[0].count,
     },
   }
 }
@@ -129,13 +194,15 @@ async function salesByOutlet(startDate, endDate) {
   const [rows] = await pool.query(`
     SELECT
       o.name AS outlet_name,
-      IFNULL(SUM(po.total), 0) AS revenue,
-      COUNT(*) AS order_count,
-      IFNULL(ROUND(AVG(po.total), 2), 0) AS avg_ticket
-    FROM pos_orders po
-    JOIN outlets o ON o.id = po.outlet_id
-    WHERE DATE(po.created_at) BETWEEN ? AND ?
-    GROUP BY o.name
+      o.type AS outlet_type,
+      IFNULL(SUM(po.total + IFNULL(po.tip, 0)), 0) AS revenue,
+      COUNT(po.id) AS order_count,
+      IFNULL(ROUND(AVG(po.total + IFNULL(po.tip, 0)), 2), 0) AS avg_ticket
+    FROM outlets o
+    LEFT JOIN pos_orders po ON po.outlet_id = o.id
+      AND po.status = 'paid' AND DATE(po.created_at) BETWEEN ? AND ?
+    WHERE o.is_active = 1
+    GROUP BY o.id, o.name, o.type
     ORDER BY revenue DESC
   `, [start, end])
   return rows

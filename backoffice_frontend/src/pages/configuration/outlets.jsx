@@ -11,6 +11,7 @@ import {
   DialogTitle,
   FormControlLabel,
   IconButton,
+  MenuItem,
   Switch,
   Table,
   TableBody,
@@ -40,6 +41,7 @@ const inputSx = {
 function OutletDialog({ outlet = null, onSave, onClose }) {
   const [form, setForm] = useState({
     name: outlet?.name ?? '',
+    type: outlet?.type ?? 'restaurant',
     code: outlet?.code ?? '',
     address: outlet?.address ?? '',
     phone: outlet?.phone ?? '',
@@ -90,6 +92,25 @@ function OutletDialog({ outlet = null, onSave, onClose }) {
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           sx={inputSx}
         />
+        <TextField
+          variant="standard"
+          size="small"
+          select
+          label="Type"
+          value={form.type}
+          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+          sx={inputSx}
+        >
+          <MenuItem value="restaurant">Restaurant</MenuItem>
+          <MenuItem value="bar">Bar</MenuItem>
+          <MenuItem value="lounge">Lounge</MenuItem>
+          <MenuItem value="spa">Spa</MenuItem>
+          <MenuItem value="laundry">Laundry</MenuItem>
+          <MenuItem value="minibar">Minibar</MenuItem>
+          <MenuItem value="shop">Shop</MenuItem>
+          <MenuItem value="room_service">Room Service</MenuItem>
+          <MenuItem value="other">Other</MenuItem>
+        </TextField>
         <TextField
           variant="standard"
           size="small"
@@ -223,6 +244,7 @@ function Outlets() {
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600 }}>Outlet</TableCell>
+              <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Code</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Devices</TableCell>
@@ -233,7 +255,7 @@ function Outlets() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6}>Loading...</TableCell>
+                <TableCell colSpan={7}>Loading...</TableCell>
               </TableRow>
             ) : (
               outlets.map((outlet) => (
@@ -245,6 +267,13 @@ function Outlets() {
                         {outlet.address}
                       </Typography>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={outlet.type || 'restaurant'}
+                      size="small"
+                      sx={{ height: 18, fontSize: '0.62rem', textTransform: 'capitalize' }}
+                    />
                   </TableCell>
                   <TableCell>{outlet.code || '—'}</TableCell>
                   <TableCell>{outlet.phone || '—'}</TableCell>
@@ -273,7 +302,7 @@ function Outlets() {
             )}
             {!loading && outlets.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6}>No outlets yet.</TableCell>
+                <TableCell colSpan={7}>No outlets yet.</TableCell>
               </TableRow>
             )}
           </TableBody>

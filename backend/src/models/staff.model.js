@@ -229,6 +229,74 @@ async function findByPin(pin) {
   return null
 }
 
+async function createRole({ name, description }) {
+  if (!name || !name.trim()) throw httpError('Role name is required', 400)
+  const [result] = await pool.query(
+    'INSERT INTO staff_roles (name, description) VALUES (?, ?)',
+    [name.trim(), description || null],
+  )
+  return getRole(result.insertId)
+}
+
+async function updateRole(id, { name, description }) {
+  if (!name || !name.trim()) throw httpError('Role name is required', 400)
+  const [result] = await pool.query(
+    'UPDATE staff_roles SET name = ?, description = ? WHERE id = ?',
+    [name.trim(), description || null, id],
+  )
+  if (result.affectedRows === 0) throw httpError('Role not found', 404)
+  return getRole(id)
+}
+
+async function deleteRole(id) {
+  const [result] = await pool.query('DELETE FROM staff_roles WHERE id = ?', [id])
+  if (result.affectedRows === 0) throw httpError('Role not found', 404)
+}
+
+async function getRole(id) {
+  const [rows] = await pool.query('SELECT id, name, description FROM staff_roles WHERE id = ?', [id])
+  if (!rows[0]) return null
+  const role = { id: rows[0].id, name: rows[0].name, description: rows[0].description || null }
+  const [perms] = await pool.query(
+    'SELECT permission FROM role_permissions WHERE role_id = ? ORDER BY permission ASC',
+    [id],
+  )
+  role.permissions = perms.map((r) => r.permission)
+  return role
+}
+
+async function listRolesDetailed() {
+  const roles = await listRoles()
+  const [allPerms] = await pool.query('SELECT role_id, permission FROM role_permissions')
+  const permsByRole = new Map()
+  for (const row of allPerms) {
+    if (!permsByRole.has(row.role_id)) permsByRole.set(row.role_id, [])
+    permsByRole.get(row.role_id).push(row.permission)
+  }
+  return roles.map((r) => ({ ...r, permissions: permsByRole.get(r.id) || [] }))
+}
+
+async function setRolePermissions(roleId, permissions) {
+  const role = await getRole(roleId)
+  if (!role) throw httpError('Role not found', 404)
+  const conn = await pool.getConnection()
+  try {
+    await conn.beginTransaction()
+    await conn.query('DELETE FROM role_permissions WHERE role_id = ?', [roleId])
+    if (permissions && permissions.length) {
+      const values = permissions.map((p) => [roleId, p])
+      await conn.query('INSERT INTO role_permissions (role_id, permission) VALUES ?', [values])
+    }
+    await conn.commit()
+  } catch (err) {
+    await conn.rollback()
+    throw err
+  } finally {
+    conn.release()
+  }
+  return getRole(roleId)
+}
+
 module.exports = {
   findAll,
   findActiveMinimal,
@@ -248,4 +316,10 @@ module.exports = {
   hasPermission,
   findManagers,
   findManagerByPin,
+  createRole,
+  updateRole,
+  deleteRole,
+  getRole,
+  listRolesDetailed,
+  setRolePermissions,
 }

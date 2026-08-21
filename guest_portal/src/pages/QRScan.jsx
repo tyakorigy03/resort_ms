@@ -13,7 +13,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material'
-import HotelIcon from '@mui/icons-material/Hotel'
+import logo from '../assets/logo.png'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import CameraAltIcon from '@mui/icons-material/CameraAlt'
@@ -141,7 +141,7 @@ export default function QRScan({ onToggleMode, mode }) {
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent sx={{ p: 4, textAlign: 'center' }}>
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <HotelIcon color="primary" />
+            <Box component="img" src={logo} alt="Logo" sx={{ width: 36, height: 36, objectFit: 'contain' }} />
             <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
               Guest Portal
             </Typography>

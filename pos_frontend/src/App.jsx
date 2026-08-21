@@ -28,6 +28,18 @@ function RequireShift({ shift, children }) {
   return children
 }
 
+function AuthShell({ authed, shift, device, onLogout, children }) {
+  return (
+    <RequireAuth authed={authed}>
+      <RequireShift shift={shift}>
+        <PosShell device={device} onLogout={onLogout}>
+          {children}
+        </PosShell>
+      </RequireShift>
+    </RequireAuth>
+  )
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(false)
   const [device, setDevice] = useState(null)
@@ -65,18 +77,6 @@ export default function App() {
 
   if (!ready) return null
 
-  function AuthShell({ children }) {
-    return (
-      <RequireAuth authed={authed}>
-        <RequireShift shift={shift}>
-          <PosShell device={device} onLogout={logout}>
-            {children}
-          </PosShell>
-        </RequireShift>
-      </RequireAuth>
-    )
-  }
-
   return (
     <Routes>
       <Route
@@ -105,12 +105,12 @@ export default function App() {
           </RequireAuth>
         }
       />
-      <Route path="/register" element={<AuthShell><Console /></AuthShell>} />
-      <Route path="/tables" element={<AuthShell><TablesScreen /></AuthShell>} />
-      <Route path="/orders" element={<AuthShell><OrdersScreen /></AuthShell>} />
-      <Route path="/customers" element={<AuthShell><CustomersScreen /></AuthShell>} />
-      <Route path="/receipts" element={<AuthShell><ReceiptsScreen /></AuthShell>} />
-      <Route path="/settings" element={<AuthShell><SettingsScreen /></AuthShell>} />
+      <Route path="/register" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><Console /></AuthShell>} />
+      <Route path="/tables" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><TablesScreen /></AuthShell>} />
+      <Route path="/orders" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><OrdersScreen /></AuthShell>} />
+      <Route path="/customers" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><CustomersScreen /></AuthShell>} />
+      <Route path="/receipts" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><ReceiptsScreen /></AuthShell>} />
+      <Route path="/settings" element={<AuthShell authed={authed} shift={shift} device={device} onLogout={logout}><SettingsScreen /></AuthShell>} />
       <Route path="*" element={<Navigate to={authed ? '/' : '/login'} replace />} />
     </Routes>
   )

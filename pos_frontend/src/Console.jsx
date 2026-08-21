@@ -139,6 +139,16 @@ function Register() {
   }, [activeOrderId])
 
   useEffect(() => {
+    if (!activeOrderId) return
+    const disconnect = api.connectSSE((event) => {
+      if (event.orderId === activeOrderId) {
+        loadOrder(activeOrderId)
+      }
+    })
+    return disconnect
+  }, [activeOrderId])
+
+  useEffect(() => {
     if (order?.courses?.length && !activeCourseId) {
       setActiveCourseId(order.courses[0].id)
     }
@@ -235,7 +245,8 @@ function Register() {
     try {
       const updated = await api.addCourse(order.id)
       setOrder(updated)
-      setActiveCourseId(updated.id)
+      const newCourse = updated.courses?.[updated.courses.length - 1]
+      if (newCourse) setActiveCourseId(newCourse.id)
     } catch (err) {
       setError(err.message)
     } finally {

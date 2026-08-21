@@ -8,6 +8,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'https://api.chumbaplus.com',
+
         changeOrigin: true,
       },
     },

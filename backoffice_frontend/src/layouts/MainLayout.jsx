@@ -153,7 +153,15 @@ const navConfig = [
     ],
   },
   { label: 'Customers', icon: <GroupIcon />, path: '/customers' },
-  { label: 'Staff', icon: <EngineeringIcon />, path: '/staff' },
+  {
+    label: 'Staff',
+    icon: <EngineeringIcon />,
+    path: '/staff',
+    children: [
+      { label: 'Staff Members', icon: <PeopleIcon />, path: '/staff/list' },
+      { label: 'Roles', icon: <BadgeIcon />, path: '/staff/roles' },
+    ],
+  },
   { label: 'Devices', icon: <DevicesOtherIcon />, path: '/devices' },
   { label: 'Users', icon: <PeopleIcon />, path: '/users' },
 ]

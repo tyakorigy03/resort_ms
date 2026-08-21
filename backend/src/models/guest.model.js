@@ -388,4 +388,11 @@ async function guestOrders(reservationId) {
   return orders
 }
 
-module.exports = { lookupByRoom, requestOtp, verifyOtp, guestDashboard, guestMenu, createGuestOrder, guestOrders }
+async function guestOutlets() {
+  const [rows] = await pool.query(
+    `SELECT id, name, type FROM outlets WHERE is_active = 1 ORDER BY name ASC`,
+  )
+  return rows
+}
+
+module.exports = { lookupByRoom, requestOtp, verifyOtp, guestDashboard, guestMenu, createGuestOrder, guestOrders, guestOutlets }

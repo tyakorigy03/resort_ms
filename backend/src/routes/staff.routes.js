@@ -23,6 +23,58 @@ router.get('/roles', verifyToken, async (req, res, next) => {
   }
 })
 
+// Detailed roles list (with permissions) for the roles management page.
+router.get('/roles/detailed', verifyToken, async (req, res, next) => {
+  try {
+    res.json(await staffModel.listRolesDetailed())
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Create a staff role.
+router.post('/roles', verifyToken, async (req, res, next) => {
+  try {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ message: 'Role name is required' })
+    res.status(201).json(await staffModel.createRole(req.body))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update a staff role.
+router.put('/roles/:id', verifyToken, async (req, res, next) => {
+  try {
+    const { name } = req.body
+    if (!name) return res.status(400).json({ message: 'Role name is required' })
+    res.json(await staffModel.updateRole(req.params.id, req.body))
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Delete a staff role.
+router.delete('/roles/:id', verifyToken, async (req, res, next) => {
+  try {
+    await staffModel.deleteRole(req.params.id)
+    res.json({ message: 'Role deleted' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Replace all permissions for a role.
+router.put('/roles/:id/permissions', verifyToken, async (req, res, next) => {
+  try {
+    const { permissions } = req.body
+    if (!Array.isArray(permissions)) return res.status(400).json({ message: 'permissions must be an array' })
+    res.json(await staffModel.setRolePermissions(req.params.id, permissions))
+  } catch (error) {
+    next(error)
+  }
+})
+
 // Staff who may open/close a sales period (device or user token). Used by the
 // POS to let a manager authorize period open/close.
 router.get('/managers', verifyAny, async (req, res, next) => {

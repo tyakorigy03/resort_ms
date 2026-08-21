@@ -1,6 +1,7 @@
 const express = require('express')
 const { kdsModel } = require('../models')
 const { verifyDevice } = require('../middlewares/auth')
+const sse = require('../utils/sse')
 
 const router = express.Router()
 
@@ -24,7 +25,9 @@ router.get('/tickets', verifyDevice, requireStation, async (req, res, next) => {
 // Advance a single item's kitchen status.
 router.patch('/items/:itemId/status', verifyDevice, requireStation, async (req, res, next) => {
   try {
-    res.json(await kdsModel.updateItemStatus(req.params.itemId, req.device.productionCenterId, req.body.status))
+    const result = await kdsModel.updateItemStatus(req.params.itemId, req.device.productionCenterId, req.body.status)
+    sse.broadcastOrderChanged(result.orderId)
+    res.json(result)
   } catch (error) {
     next(error)
   }

@@ -9,10 +9,12 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'https://api.chumbaplus.com',
+
         changeOrigin: true,
       },
       '/uploads': {
         target: 'https://api.chumbaplus.com',
+
         changeOrigin: true,
       },
     },

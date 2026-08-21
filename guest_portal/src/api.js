@@ -33,6 +33,9 @@ export const api = {
 
   orders: (reservationId) =>
     request(`/api/guest/orders/${reservationId}`),
+
+  outlets: () =>
+    request('/api/guest/outlets'),
 }
 
 export const SESSION_KEY = 'guest_session'

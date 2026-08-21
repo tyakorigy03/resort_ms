@@ -34,6 +34,7 @@ import ReservationsView from './pages/rooms/reservations'
 import RoomStatus from './pages/housekeeping/roomStatus'
 import HousekeepingTasks from './pages/housekeeping/tasks'
 import Staff from './pages/staff/staff'
+import Roles from './pages/staff/roles'
 import Users from './pages/Users'
 import FloorPlans from './pages/floorPlans/floorPlans'
 
@@ -81,7 +82,9 @@ function App() {
             <Route path="/rooms/reservations" element={<ReservationsView />} />
             <Route path="/housekeeping/room-status" element={<RoomStatus />} />
             <Route path="/housekeeping/tasks" element={<HousekeepingTasks />} />
-            <Route path="/staff" element={<Staff />} />
+            <Route path="/staff" element={<Navigate to="/staff/list" replace />} />
+            <Route path="/staff/list" element={<Staff />} />
+            <Route path="/staff/roles" element={<Roles />} />
             <Route path="/users" element={<Users />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
